@@ -6,40 +6,79 @@ import shutil
 import os
 from collections import defaultdict
 import time
+import logging
 
 SOURCEPATH = "/mnt/browsertrix"
 TARGETPATH = "/mnt/browsertrix-out"
+DELAY = 60
+FAIL_DELAY = 10
 
 BUCKET = os.environ.get("BUCKET", "test-bucket")
 USERNAME = os.environ.get("BROWSERTRIX_USERNAME")
 PASSWORD = os.environ.get("BROWSERTRIX_PASSWORD")
 HOST = os.environ.get("BROWSERTRIX_HOST", "127.0.0.1:9871")
 TMP_DIR = os.environ.get("TMP_DIR", "/tmp/browstertrix-preprocessor")
+LOGFILE = os.environ.get("LOGFILE")  # Empty string means stdout
+
+
+def send_to_prometheus(d):
+    # For now do nothing
+    pass
+
+
+def log_req_err(r):
+    path = r.url[len("http://" + HOST) :]
+    logging.error(f"{path} failed with status code {r.status_code}: {r.text}")
+
 
 last_check = {}
+
+logging.basicConfig(
+    filename=LOGFILE,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+logging.info("Started browsertrix preprocessor")
 
 os.makedirs(TMP_DIR, exist_ok=True)
 
 while True:
     metrics = defaultdict(lambda: 0)
 
-    auth = {"username": USERNAME, "password": PASSWORD}
-    response = requests.post(f"http://{HOST}/api/auth/jwt/login", data=auth)
-    access_token = response.json()["access_token"]
-    headers = {"Authorization": "Bearer " + access_token}
+    r = requests.post(
+        f"http://{HOST}/api/auth/jwt/login",
+        data={"username": USERNAME, "password": PASSWORD},
+    )
+    if not r.ok:
+        log_req_err(r)
+        time.sleep(FAIL_DELAY)
+        continue
 
-    response = requests.get(f"http://{HOST}/api/archives", headers=headers)
+    headers = {"Authorization": "Bearer " + r.json()["access_token"]}
 
-    for archive in response.json()["archives"]:
+    r = requests.get(f"http://{HOST}/api/archives", headers=headers)
+    if not r.ok:
+        log_req_err(r)
+        time.sleep(FAIL_DELAY)
+        continue
+
+    for archive in r.json()["archives"]:
         aid = archive["id"]
 
         if not aid in last_check:
             last_check[aid] = 0
 
-        response = requests.get(
+        r = requests.get(
             f"http://{HOST}/api/archives/" + aid + "/crawls", headers=headers
         )
-        for crawl in response.json()["crawls"]:
+        if not r.ok:
+            log_req_err(r)
+            time.sleep(FAIL_DELAY)
+            continue
+
+        for crawl in r.json()["crawls"]:
 
             metrics["crawl_state_" + crawl["state"]] += 1
 
@@ -53,13 +92,19 @@ while True:
 
                 if finish_date.timestamp() > last_check[aid]:
                     last_check[aid] = finish_date.timestamp()
-                    print(crawl["id"])
 
-                    response = requests.get(
+                    logging.info("Working on crawl %s", crawl["id"])
+
+                    r = requests.get(
                         f"http://{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
                         headers=headers,
                     )
-                    crawl_reponse = response.json()
+                    if not r.ok:
+                        log_req_err(r)
+                        time.sleep(FAIL_DELAY)
+                        continue
+
+                    crawl_reponse = r.json()
 
                     wacz_path = os.path.join(
                         SOURCEPATH, BUCKET, crawl_reponse["resources"][0]["name"]
@@ -69,9 +114,7 @@ while True:
                     recorder_meta = {}
 
                     with ZipFile(wacz_path, "r") as wacz:
-
                         data = json.loads(wacz.read("datapackage-digest.json"))
-                        print(data)
                         content_meta["authsign_software"] = data["signedData"][
                             "software"
                         ]
@@ -108,6 +151,6 @@ while True:
                             os.path.join(TARGETPATH, crawl_reponse["id"] + ".zip"),
                         )
 
-    print(metrics)
+    send_to_prometheus(metrics)
 
-    time.sleep(60)
+    time.sleep(DELAY)
