@@ -67,8 +67,7 @@ while True:
     for archive in r.json()["archives"]:
         aid = archive["id"]
 
-        if not aid in last_check:
-            last_check[aid] = 0
+        logging.info("Working on archive %s", aid)
 
         r = requests.get(
             f"http://{HOST}/api/archives/" + aid + "/crawls", headers=headers
@@ -82,74 +81,74 @@ while True:
 
             metrics["crawl_state_" + crawl["state"]] += 1
 
-            if crawl["state"] == "complete":
-                start_date = datetime.datetime.fromisoformat(crawl["started"])
-                finish_date = datetime.datetime.fromisoformat(crawl["finished"])
-                length = finish_date - start_date
+            if crawl["state"] != "complete":
+                continue
 
-                if length.total_seconds() / 60 < 1:
-                    metrics["crawl_slow_count"] += 1
+            start_date = datetime.datetime.fromisoformat(crawl["started"])
+            finish_date = datetime.datetime.fromisoformat(crawl["finished"])
+            length = finish_date - start_date
 
-                if finish_date.timestamp() > last_check[aid]:
-                    last_check[aid] = finish_date.timestamp()
+            if length.total_seconds() / 60 < 1:
+                metrics["crawl_short_count"] += 1
 
-                    logging.info("Working on crawl %s", crawl["id"])
+            if finish_date.timestamp() <= last_check[aid]:
+                continue
 
-                    r = requests.get(
-                        f"http://{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
-                        headers=headers,
-                    )
-                    if not r.ok:
-                        log_req_err(r)
-                        time.sleep(FAIL_DELAY)
-                        continue
+            last_check[aid] = finish_date.timestamp()
 
-                    crawl_reponse = r.json()
+            logging.info("Working on crawl %s", crawl["id"])
 
-                    wacz_path = os.path.join(
-                        SOURCEPATH, BUCKET, crawl_reponse["resources"][0]["name"]
-                    )
+            r = requests.get(
+                f"http://{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
+                headers=headers,
+            )
+            if not r.ok:
+                log_req_err(r)
+                time.sleep(FAIL_DELAY)
+                continue
 
-                    content_meta = {}
-                    recorder_meta = {}
+            crawl_reponse = r.json()
 
-                    with ZipFile(wacz_path, "r") as wacz:
-                        data = json.loads(wacz.read("datapackage-digest.json"))
-                        content_meta["authsign_software"] = data["signedData"][
-                            "software"
-                        ]
-                        content_meta["authsign_domain"] = data["signedData"]["domain"]
+            wacz_path = os.path.join(
+                SOURCEPATH, BUCKET, crawl_reponse["resources"][0]["name"]
+            )
 
-                        data = json.loads(wacz.read("datapackage.json"))
-                        content_meta["wacz_version"] = data["wacz_version"]
-                        content_meta["created"] = data["created"]
+            content_meta = {}
+            recorder_meta = {}
 
-                        content_meta["pages"] = {}
-                        with wacz.open("pages/pages.jsonl") as jsonl_file:
-                            for line in jsonl_file.readlines():
-                                data = json.loads(line)
-                                if "url" in data:
-                                    content_meta["pages"][data["id"]] = data["url"]
+            with ZipFile(wacz_path, "r") as wacz:
+                data = json.loads(wacz.read("datapackage-digest.json"))
+                content_meta["authsign_software"] = data["signedData"]["software"]
+                content_meta["authsign_domain"] = data["signedData"]["domain"]
 
-                        zip_path = os.path.join(TMP_DIR, crawl_reponse["id"] + ".zip")
-                        zipf = ZipFile(zip_path, "w")
-                        zipf.write(wacz_path, os.path.basename(wacz_path))
-                        zipf.writestr("content_metadata.json", json.dumps(content_meta))
-                        zipf.writestr(
-                            "recorder_metadata.json", json.dumps(recorder_meta)
-                        )
-                        zipf.close()
+                data = json.loads(wacz.read("datapackage.json"))
+                content_meta["wacz_version"] = data["wacz_version"]
+                content_meta["created"] = data["created"]
 
-                        # Moving is not atomic in this case because the destination
-                        # is on a mounted filesystem. So use a .part file.
-                        shutil.move(
-                            zip_path,
-                            os.path.join(TARGETPATH, crawl_reponse["id"] + ".zip.part"),
-                        )
-                        os.rename(
-                            os.path.join(TARGETPATH, crawl_reponse["id"] + ".zip.part"),
-                            os.path.join(TARGETPATH, crawl_reponse["id"] + ".zip"),
-                        )
+                content_meta["pages"] = {}
+                with wacz.open("pages/pages.jsonl") as jsonl_file:
+                    for line in jsonl_file.readlines():
+                        data = json.loads(line)
+                        if "url" in data:
+                            content_meta["pages"][data["id"]] = data["url"]
+
+                zip_path = os.path.join(TMP_DIR, crawl_reponse["id"] + ".zip")
+                zipf = ZipFile(zip_path, "w")
+                zipf.write(wacz_path, os.path.basename(wacz_path))
+                zipf.writestr("content_metadata.json", json.dumps(content_meta))
+                zipf.writestr("recorder_metadata.json", json.dumps(recorder_meta))
+                zipf.close()
+
+                # Moving is not atomic in this case because the destination
+                # is on a mounted filesystem. So use a .part file.
+                shutil.move(
+                    zip_path,
+                    os.path.join(TARGETPATH, crawl_reponse["id"] + ".zip.part"),
+                )
+                os.rename(
+                    os.path.join(TARGETPATH, crawl_reponse["id"] + ".zip.part"),
+                    os.path.join(TARGETPATH, crawl_reponse["id"] + ".zip"),
+                )
 
     send_to_prometheus(metrics)
 
