@@ -5,7 +5,7 @@
   - Log attempt number
 - [x] Retry logic for HTTP requests
 - [x] Stop using `r.ok`
-- [ ] Wrapper func around requests to handle JWT expiry
+- [x] Wrapper func around requests to handle JWT expiry
 - [ ] What is desired for metrics?
   - When to send
   - How to send

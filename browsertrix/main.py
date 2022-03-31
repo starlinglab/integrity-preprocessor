@@ -7,6 +7,7 @@ import os
 from collections import defaultdict
 import time
 import logging
+from base64 import urlsafe_b64decode
 
 SOURCE_PATH = os.environ.get("SOURCE_PATH", "/mnt/browsertrix")
 TARGET_PATH = os.environ.get("TARGET_PATH", "/mnt/browsertrix-out")
@@ -31,6 +32,11 @@ def send_to_prometheus(d):
     pass
 
 
+def write_data(d):
+    with open(DATA_JSON_PATH, "w") as f:
+        json.dump(d, f)
+
+
 def log_req_err(r, tries):
     path = r.url[len("http://" + HOST) :]
     logging.error(
@@ -43,9 +49,42 @@ def log_req_success(r, tries):
     logging.info(f"{r.request.method} {path} succeeded (tries: {tries})")
 
 
-def write_data(d):
-    with open(DATA_JSON_PATH, "w") as f:
-        json.dump(d, f)
+access_token = None
+
+
+def get_access_token():
+    global access_token
+
+    if access_token is not None:
+        # Parse JWT to see if token has expired
+        payload = json.loads(urlsafe_b64decode(access_token.split(".")[1] + "=="))
+        if payload["exp"] - time.time() > 10:
+            # It hasn't expired, and won't for at least 10 seconds or more
+            # So keep using it
+            return access_token
+
+    # New access token needed, get it by logging in
+
+    i = 1
+    while True:
+        r = requests.post(
+            f"http://{HOST}/api/auth/jwt/login",
+            data={"username": USERNAME, "password": PASSWORD},
+        )
+        if r.status_code != 200:
+            log_req_err(r, i)
+            i += 1
+            time.sleep(FAIL_DELAY)
+            continue
+        log_req_success(r, i)
+        break
+
+    access_token = r.json()["access_token"]
+    return access_token
+
+
+def headers():
+    return {"Authorization": "Bearer " + get_access_token()}
 
 
 logging.basicConfig(
@@ -82,23 +121,7 @@ while True:
 
     i = 1
     while True:
-        r = requests.post(
-            f"http://{HOST}/api/auth/jwt/login",
-            data={"username": USERNAME, "password": PASSWORD},
-        )
-        if r.status_code != 200:
-            log_req_err(r, i)
-            i += 1
-            time.sleep(FAIL_DELAY)
-            continue
-        log_req_success(r, i)
-        break
-
-    headers = {"Authorization": "Bearer " + r.json()["access_token"]}
-
-    i = 1
-    while True:
-        r = requests.get(f"http://{HOST}/api/archives", headers=headers)
+        r = requests.get(f"http://{HOST}/api/archives", headers=headers())
         if r.status_code != 200:
             log_req_err(r, i)
             i += 1
@@ -121,7 +144,7 @@ while True:
         i = 1
         while True:
             r = requests.get(
-                f"http://{HOST}/api/archives/{aid}/crawls", headers=headers
+                f"http://{HOST}/api/archives/{aid}/crawls", headers=headers()
             )
             if r.status_code != 200:
                 log_req_err(r, i)
@@ -164,7 +187,7 @@ while True:
             while True:
                 r = requests.get(
                     f"http://{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
-                    headers=headers,
+                    headers=headers(),
                 )
                 if r.status_code != 200:
                     log_req_err(r)
