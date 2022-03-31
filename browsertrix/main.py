@@ -16,8 +16,9 @@ USERNAME = os.environ.get("BROWSERTRIX_USERNAME")
 PASSWORD = os.environ.get("BROWSERTRIX_PASSWORD")
 HOST = os.environ.get("BROWSERTRIX_HOST", "127.0.0.1:9871")
 TMP_DIR = os.environ.get("TMP_DIR", "/tmp/browstertrix-preprocessor")
-LOG_PATH = os.environ.get("LOG_PATH")  # Empty string means stdout
+LOG_FILE = os.environ.get("LOG_FILE")  # Empty string means stdout
 DATA_DIR = os.environ.get("DATA_DIR")
+PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
 
 DATA_JSON_PATH = os.path.join(DATA_DIR, "data.json")
 
@@ -27,14 +28,37 @@ FAIL_DELAY = 10
 LAST_CHECK_WINDOW = 30
 
 
-def send_to_prometheus(d):
-    # For now do nothing
-    pass
+def send_to_prometheus(metrics):
+    if not PROMETHEUS_FILE:
+        return
+
+    # Write to .part file then rename, so that there isn't a race condition
+    # where the file watcher might read the truncated file
+
+    with open(PROMETHEUS_FILE + ".part", "w") as f:
+        for key, value in metrics.items():
+            f.write(f"{key} {value}\n")
+
+    os.rename(PROMETHEUS_FILE + ".part", PROMETHEUS_FILE)
 
 
-def write_data(d):
-    with open(DATA_JSON_PATH, "w") as f:
-        json.dump(d, f)
+# Metrics live for the duration of the script
+metrics = defaultdict(lambda: 0)  # Never fail when updating non-existent key with +=
+# Set known keys so they show up when .items() is called
+metrics.update(
+    {
+        "crawl_state_complete": 0,
+        "crawl_short_count": 0,
+        "request_errors": 0,
+        "crawl_zip_already_exists": 0,
+        "wacz_not_found": 0,
+        "tmp_zip_write_failures": 0,
+        "tmp_zip_move_failures": 0,
+        "tmp_zip_rename_failures": 0,
+        "processed_archives": 0,
+        "processed_crawls": 0,
+    }
+)
 
 
 def log_req_err(r, tries):
@@ -42,6 +66,8 @@ def log_req_err(r, tries):
     logging.error(
         f"{r.request.method} {path} failed with status code {r.status_code} (tries: {tries}):\n{r.text}"
     )
+    del metrics["request_errors"]  # Prometheus will see this as the same so remove it
+    metrics['request_errors{status_code="' + str(r.status_code) + '"}'] += 1
 
 
 def log_req_success(r, tries):
@@ -50,18 +76,16 @@ def log_req_success(r, tries):
 
 
 access_token = None
+access_token_exp = 0
 
 
 def get_access_token():
-    global access_token
+    global access_token, access_token_exp
 
-    if access_token is not None:
-        # Parse JWT to see if token has expired
-        payload = json.loads(urlsafe_b64decode(access_token.split(".")[1] + "=="))
-        if payload["exp"] - time.time() > 10:
-            # It hasn't expired, and won't for at least 10 seconds or more
-            # So keep using it
-            return access_token
+    if access_token_exp - time.time() > 10:
+        # It hasn't expired, and won't for at least 10 seconds or more,
+        # so keep using it
+        return access_token
 
     # New access token needed, get it by logging in
 
@@ -80,6 +104,9 @@ def get_access_token():
         break
 
     access_token = r.json()["access_token"]
+    access_token_exp = json.loads(
+        urlsafe_b64decode(access_token.split(".")[1] + "=="),
+    )["exp"]
     return access_token
 
 
@@ -87,8 +114,13 @@ def headers():
     return {"Authorization": "Bearer " + get_access_token()}
 
 
+def write_data(d):
+    with open(DATA_JSON_PATH, "w") as f:
+        json.dump(d, f)
+
+
 logging.basicConfig(
-    filename=LOG_PATH,
+    filename=LOG_FILE,
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -116,8 +148,10 @@ if os.path.exists(DATA_JSON_PATH):
         data = json.load(f)
 
 
+# Write initial file
+send_to_prometheus(metrics)
+
 while True:
-    metrics = defaultdict(lambda: 0)
 
     i = 1
     while True:
@@ -161,6 +195,9 @@ while True:
 
         for crawl in crawls:
             logging.info("Looking at crawl %s", crawl["id"])
+
+            # Save metrics after each crawl
+            send_to_prometheus(metrics)
 
             metrics["crawl_state_" + crawl["state"]] += 1
 
@@ -206,6 +243,7 @@ while True:
                     crawl["id"],
                     TARGET_PATH,
                 )
+                metrics["crawl_zip_already_exists"] += 1
                 # Update data as if it was completed in this check, because it's
                 # already done
                 new_last_check = finish_date.timestamp()
@@ -221,6 +259,7 @@ while True:
                 logging.error(
                     "WACZ not available at path '%s' (tries: %d)", wacz_path, i
                 )
+                metrics["wacz_not_found"] += 1
                 i += 1
                 time.sleep(FAIL_DELAY)
             logging.info("WACZ available at path '%s' (tries: %d)", wacz_path, i)
@@ -259,6 +298,7 @@ while True:
                     logging.exception(
                         "Failed to write temp ZIP to %s (tries: %d)", TMP_DIR, i
                     )
+                    metrics["tmp_zip_write_failures"] += 1
                     i += 1
                     time.sleep(FAIL_DELAY)
                 else:
@@ -280,6 +320,7 @@ while True:
                     logging.exception(
                         "Failed to move temp ZIP to %s (tries: %d)", TARGET_PATH, i
                     )
+                    metrics["tmp_zip_move_failures"] += 1
                     i += 1
                     time.sleep(FAIL_DELAY)
                 else:
@@ -299,6 +340,7 @@ while True:
                         crawl["id"],
                         i,
                     )
+                    metrics["tmp_zip_rename_failures"] += 1
                     i += 1
                     time.sleep(FAIL_DELAY)
                 else:
@@ -310,15 +352,15 @@ while True:
                     break
 
             logging.info("Successfully processed crawl %s", crawl["id"])
+            metrics["processed_crawls"] += 1
             # Update data since processing of crawl was successful
             new_last_check = finish_date.timestamp()
             new_crawls.append(crawl["id"])
 
         logging.info("Done with archive %s", aid)
+        metrics["processed_archives"] += 1
 
         data[aid] = {"last_check": new_last_check, "crawls": new_crawls}
         write_data(data)
-
-    send_to_prometheus(metrics)
 
     time.sleep(LOOP_INTERVAL)
