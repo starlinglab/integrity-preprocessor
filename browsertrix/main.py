@@ -20,7 +20,7 @@ DATA_DIR = os.environ.get("DATA_DIR")
 
 DATA_JSON_PATH = os.path.join(DATA_DIR, "data.json")
 
-DELAY = 60
+LOOP_INTERVAL = 60
 FAIL_DELAY = 10
 # Crawl that finished X seconds before the last check is checked again, just in case
 LAST_CHECK_WINDOW = 30
@@ -31,9 +31,16 @@ def send_to_prometheus(d):
     pass
 
 
-def log_req_err(r):
+def log_req_err(r, tries):
     path = r.url[len("http://" + HOST) :]
-    logging.error(f"{path} failed with status code {r.status_code}:\n{r.text}")
+    logging.error(
+        f"{r.request.method} {path} failed with status code {r.status_code} (tries: {tries}):\n{r.text}"
+    )
+
+
+def log_req_success(r, tries):
+    path = r.url[len("http://" + HOST) :]
+    logging.info(f"{r.request.method} {path} succeeded (tries: {tries})")
 
 
 def write_data(d):
@@ -73,22 +80,32 @@ if os.path.exists(DATA_JSON_PATH):
 while True:
     metrics = defaultdict(lambda: 0)
 
-    r = requests.post(
-        f"http://{HOST}/api/auth/jwt/login",
-        data={"username": USERNAME, "password": PASSWORD},
-    )
-    if not r.ok:
-        log_req_err(r)
-        time.sleep(FAIL_DELAY)
-        continue
+    i = 1
+    while True:
+        r = requests.post(
+            f"http://{HOST}/api/auth/jwt/login",
+            data={"username": USERNAME, "password": PASSWORD},
+        )
+        if r.status_code != 200:
+            log_req_err(r, i)
+            i += 1
+            time.sleep(FAIL_DELAY)
+            continue
+        log_req_success(r, i)
+        break
 
     headers = {"Authorization": "Bearer " + r.json()["access_token"]}
 
-    r = requests.get(f"http://{HOST}/api/archives", headers=headers)
-    if not r.ok:
-        log_req_err(r)
-        time.sleep(FAIL_DELAY)
-        continue
+    i = 1
+    while True:
+        r = requests.get(f"http://{HOST}/api/archives", headers=headers)
+        if r.status_code != 200:
+            log_req_err(r, i)
+            i += 1
+            time.sleep(FAIL_DELAY)
+            continue
+        log_req_success(r, i)
+        break
 
     for archive in r.json()["archives"]:
         aid = archive["id"]
@@ -101,11 +118,18 @@ while True:
         new_last_check = data[aid]["last_check"]
         new_crawls = []
 
-        r = requests.get(f"http://{HOST}/api/archives/{aid}/crawls", headers=headers)
-        if not r.ok:
-            log_req_err(r)
-            time.sleep(FAIL_DELAY)
-            continue
+        i = 1
+        while True:
+            r = requests.get(
+                f"http://{HOST}/api/archives/{aid}/crawls", headers=headers
+            )
+            if r.status_code != 200:
+                log_req_err(r, i)
+                i += 1
+                time.sleep(FAIL_DELAY)
+                continue
+            log_req_success(r, i)
+            break
 
         # Sort crawls by finish time, from ones that finished first to those
         # that finished most recently
@@ -136,14 +160,19 @@ while True:
             if length.total_seconds() / 60 < 1:
                 metrics["crawl_short_count"] += 1
 
-            r = requests.get(
-                f"http://{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
-                headers=headers,
-            )
-            if not r.ok:
-                log_req_err(r)
-                time.sleep(FAIL_DELAY)
-                continue
+            i = 1
+            while True:
+                r = requests.get(
+                    f"http://{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
+                    headers=headers,
+                )
+                if r.status_code != 200:
+                    log_req_err(r)
+                    i += 1
+                    time.sleep(FAIL_DELAY)
+                    continue
+                log_req_success(r, i)
+                break
 
             crawl_reponse = r.json()
 
@@ -269,4 +298,4 @@ while True:
 
     send_to_prometheus(metrics)
 
-    time.sleep(DELAY)
+    time.sleep(LOOP_INTERVAL)
