@@ -18,7 +18,7 @@ def zipFolder(zipfile, path):
                 #create complete filepath of file in directory
                 filePath = os.path.join(folderName, filename)
                 # Add file to zip
-                archive.write(filePath, os.path.basename(filePath))
+                zipfile.write(filePath, os.path.basename(filePath))
 
 tmpFolder="/tmp"
 outputPath="/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive/input/"
