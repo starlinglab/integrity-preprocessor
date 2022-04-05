@@ -41,8 +41,8 @@ config = {
 def processInjestor(key):
     injestorConfig = config['injestors'][key]
 
-    stagePath=os.path.join(injestorConfig['targetpath'], "/tmp")
-    outputPath=os.path.join(injestorConfig['targetpath'], "/input")
+    stagePath=os.path.join(injestorConfig['targetpath'], "tmp")
+    outputPath=os.path.join(injestorConfig['targetpath'], "input")
 
     if not os.path.exists(stagePath):
         os.makedirs(stagePath)
@@ -87,8 +87,10 @@ def processInjestor(key):
                     # Calculate date/time for the folder
                     if (len(dirParts) == 3):
                         folderDateTime = datetime.datetime.strptime(item, "%Y-%m-%d") + datetime.timedelta(days=1)
-                    if (len(dirParts) == 4):
+                    elif (len(dirParts) == 4):
                         folderDateTime = datetime.datetime.strptime(item, "%Y-%m-%d-%H") + datetime.timedelta(hours=1)
+                    else:
+                        print("Failed to parse {item}" )
                     # Offset datetime for 1 min to give any writing time to finish
                     folderDateTime=folderDateTime + datetime.timedelta(minutes=1)
                     currentDateTime = datetime.datetime.utcnow()
