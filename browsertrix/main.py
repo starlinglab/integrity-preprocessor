@@ -8,6 +8,9 @@ from collections import defaultdict
 import time
 import logging
 from base64 import urlsafe_b64decode
+import dotenv
+
+dotenv.load_dotenv()
 
 SOURCE_PATH = os.environ.get("SOURCE_PATH", "/mnt/browsertrix")
 TARGET_PATH = os.environ.get("TARGET_PATH", "/mnt/browsertrix-out")
