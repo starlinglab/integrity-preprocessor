@@ -38,6 +38,7 @@ TARGET_PATH = wacz_path = os.path.join(TARGET_ROOT_PATH, "input")
 if not os.path.exists(TARGET_PATH_TMP):
     os.makedirs(TARGET_PATH_TMP)
 
+
 def sha256sum(filename):
     with open(filename, "rb") as f:
         bytes = f.read()  # read entire file as bytes
@@ -306,9 +307,12 @@ while True:
                 try:
                     with ZipFile(zip_path, "w") as zipf:
                         zipf.write(wacz_path, os.path.basename(wacz_path))
-                        zipf.writestr("content_metadata.json", json.dumps(content_meta))
                         zipf.writestr(
-                            "recorder_metadata.json", json.dumps(recorder_meta)
+                            sha256wacz + "-meta-content.json", json.dumps(content_meta)
+                        )
+                        zipf.writestr(
+                            sha256wacz + "-meta-recorder.json",
+                            json.dumps(recorder_meta),
                         )
                 except OSError:
                     logging.exception(
