@@ -21,18 +21,19 @@ def zipFolder(zipfile, path):
                 zipfile.write(filePath, os.path.basename(filePath))
 
 tmpFolder="/tmp"
-outputPath="/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive/input/"
 config = {
     "injestors": {
         "slack_archive_bot_workspace-0": {
             "type": "slack",
             "method": "folder",
-            "localpath" : "/mnt/store/slack_archive_bot_workspace-0"
+            "localpath" : "/mnt/store/slack_archive_bot_workspace-0",
+            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-slack"
         },
         "telegram_archive_bot_testbot1": {
             "type": "telegram",
             "method": "folder",
-            "localpath": "/mnt/store/telegram_archive_bot_testbot1/archive"
+            "localpath": "/mnt/store/telegram_archive_bot_testbot1/archive",
+            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-telegram"
         }
     }
 }
@@ -40,11 +41,17 @@ config = {
 def processInjestor(key):
     injestorConfig = config['injestors'][key]
 
+    stagePath=os.path.join(injestorConfig['targetpath'], "/tmp")
+    outputPath=os.path.join(injestorConfig['targetpath'], "/input")
+
+    if not os.path.exists(stagePath):
+        os.makedirs(stagePath)
 
     #############################
     # TELEGRAM BOT FOLDER GROUP #
     #############################
     # Group telegram archive into folders
+
     if injestorConfig["type"] == "telegram":
         localPath=injestorConfig['localpath']
         for item in os.listdir(localPath):
@@ -143,16 +150,16 @@ def processInjestor(key):
                         os.rename(tmpFileName, assetFileName)
                         
                         # Generate Bundle
-                        bundelFileName = os.path.join(outputPath,sha256asset + ".zip")                    
-                        with zipfile.ZipFile(bundelFileName + ".part", "w") as archive:                        
+                        bundleFileName = os.path.join(stagePath,sha256asset + ".zip")                    
+                        with zipfile.ZipFile(bundleFileName + ".part", "w") as archive:                        
                             archive.write(assetFileName, os.path.basename(assetFileName))
                             archive.writestr(sha256asset + "-meta-content.json", json.dumps(content_meta))
                             archive.writestr(sha256asset + "-meta-recorder.json", json.dumps(recorder_meta))
 
-                        sha256zip = sha256sum(os.path.join(outputPath,sha256asset + ".zip.part"))
+                        sha256zip = sha256sum(os.path.join(stagePath,sha256asset + ".zip.part"))
 
-                        # rename file for watcher
-                        os.rename(bundelFileName + ".part", os.path.join(outputPath,sha256zip + ".zip"))
+                        # Rename file for watcher
+                        os.rename(bundleFileName + ".part", os.path.join(outputPath,sha256zip + ".zip"))
 
                         #Delete tmp file
                         os.remove(assetFileName) 
