@@ -42,16 +42,18 @@ def gitHash(repoPath):
 def build_recorder_id_json():
 
     f = open(CONFIG_PATH)
-    s = json.load(f)
+    recorder_configs = json.load(f)
 
     integrity = {}
 
-    for soft in s:
-        integrity[soft] = {}
-        if s[soft]['dockercompose']:
-            integrity[soft]['docker_services'] = dockerComposeHash(s[soft]['path'])
-        if s[soft]['git']:
-            integrity[soft]['github']= gitHash(s[soft]['path'])
+    for key in recorder_configs:
+        recorder_config = recorder_configs[key]
+        integrity[key] = {}
+        integrity[key]['type'] = recorder_config['type']
+        if 'dockercompose' in recorder_config and recorder_config['dockercompose']:
+            integrity[key]['docker_services'] = dockerComposeHash(recorder_config['path'])
+        if 'git' in recorder_config and recorder_config['git']:
+            integrity[key]['github']= gitHash(recorder_config['path'])
 
         with open(TARGET_PATH, 'w') as outfile:
             json.dump(integrity, outfile)

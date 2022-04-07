@@ -5,6 +5,31 @@ import zipfile
 import hashlib
 import tempfile
 
+# Kludge
+import sys
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + '/../integrity_recorder_id') 
+import integrity_recorder_id
+
+metdata_file_timestamp = 0
+def getRecorderMeta(type):
+    global metdata_file_timestamp, recorder_meta_all
+
+    current_metadata_file_timestamp = os.path.getmtime(integrity_recorder_id.TARGET_PATH)
+    
+    if current_metadata_file_timestamp > metdata_file_timestamp:
+   
+        if os.path.exists(integrity_recorder_id.TARGET_PATH):
+            with open(integrity_recorder_id.TARGET_PATH, 'r') as f:
+                recorder_meta_all = json.load(f)
+                print("Recorder Metadata Change Detected")
+                metdata_file_timestamp=current_metadata_file_timestamp
+
+    res = {}
+    for x in recorder_meta_all:
+        if recorder_meta_all[x]['type']==type or recorder_meta_all[x]['type'] == 'integrity':
+            res[x]=recorder_meta_all[x]
+    return res
+
 def sha256sum(filename):
     with open(filename,"rb") as f:
         bytes = f.read() # read entire file as bytes
@@ -67,12 +92,12 @@ def processInjestor(key):
                          os.mkdir(dir, 0o660)
                     os.rename(os.path.join(localPath,item),os.path.join(localPath,currentFolderDate,item))
         content_meta = {}
-        recorder_meta = {}
+        recorder_meta = getRecorderMeta("telegram_bot")
 
 
     if injestorConfig["type"] == "slack":
         content_meta = {}
-        recorder_meta = {}
+        recorder_meta = getRecorderMeta("slack_bot")
 
 
     if injestorConfig["method"] == "folder":
@@ -102,8 +127,7 @@ def processInjestor(key):
                         print(key + " Processing Asset " + item)
 
 
-                        if injestorConfig["type"] == "slack":
-                            recorder_meta['recorder'] = 'slackbot'
+                        if injestorConfig["type"] == "slack":                            
                             content_meta['channels']=[]
                             converstaionFileName = os.path.join(localPath,item,'conversations.json')
                             with open(converstaionFileName) as f:
@@ -147,7 +171,7 @@ def processInjestor(key):
                             zipFolder(archive,os.path.join(localPath,item))
                         
                         # Generate SHA and rename asset
-                        sha256asset = sha256sum(tmpFileName)
+                        sha256asset = sha256sum(tmpFileName)                        
                         assetFileName = os.path.join(tmpFolder,sha256asset + ".zip")
                         os.rename(tmpFileName, assetFileName)
                         
@@ -157,21 +181,22 @@ def processInjestor(key):
                             archive.write(assetFileName, os.path.basename(assetFileName))
                             archive.writestr(sha256asset + "-meta-content.json", json.dumps(content_meta))
                             archive.writestr(sha256asset + "-meta-recorder.json", json.dumps(recorder_meta))
-
+                        
                         sha256zip = sha256sum(os.path.join(stagePath,sha256asset + ".zip.part"))
-
                         # Rename file for watcher
                         os.rename(bundleFileName + ".part", os.path.join(outputPath,sha256zip + ".zip"))
-
                         #Delete tmp file
                         os.remove(assetFileName) 
 
                         #Rename folder to prevent re-processing
                         os.rename(os.path.join(localPath,item), os.path.join(localPath,"P-" + item))
 
+# Update IDs
+integrity_recorder_id.build_recorder_id_json()
+
 while True:
     try:
         for key in config["injestors"]:
             processInjestor(key)
     except Exception as inst:
-        print(inst)
+        raise inst
