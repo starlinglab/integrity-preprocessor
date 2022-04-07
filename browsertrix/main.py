@@ -12,6 +12,14 @@ import dotenv
 from pathlib import Path
 import hashlib
 
+# Kludge
+import sys
+
+sys.path.append(
+    os.path.dirname(os.path.realpath(__file__)) + "/../integrity_recorder_id"
+)
+import integrity_recorder_id
+
 dotenv.load_dotenv()
 
 SOURCE_PATH = os.environ.get("SOURCE_PATH", "/mnt/browsertrix")
@@ -37,6 +45,33 @@ TARGET_PATH = wacz_path = os.path.join(TARGET_ROOT_PATH, "input")
 
 if not os.path.exists(TARGET_PATH_TMP):
     os.makedirs(TARGET_PATH_TMP)
+
+
+metdata_file_timestamp = 0
+def getRecorderMeta():
+    global metdata_file_timestamp, recorder_meta_all
+
+    current_metadata_file_timestamp = os.path.getmtime(
+        integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH
+    )
+
+    if current_metadata_file_timestamp > metdata_file_timestamp:
+        if os.path.exists(integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH):
+            with open(
+                integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH, "r"
+            ) as f:
+                recorder_meta_all = json.load(f)
+                print("Recorder Metadata Change Detected")
+                metdata_file_timestamp = current_metadata_file_timestamp
+
+    res = {}
+    for x in recorder_meta_all:
+        if (
+            recorder_meta_all[x]["type"] == "browsertrix"
+            or recorder_meta_all[x]["type"] == "integrity"
+        ):
+            res[x] = recorder_meta_all[x]
+    return res
 
 
 def sha256sum(filename):
@@ -169,6 +204,9 @@ if os.path.exists(DATA_JSON_PATH):
 # Write initial file
 send_to_prometheus(metrics)
 
+# Update IDs
+integrity_recorder_id.build_recorder_id_json()
+
 while True:
 
     i = 1
@@ -207,6 +245,7 @@ while True:
         # Sort crawls by finish time, from ones that finished first to those
         # that finished most recently
         crawls = r.json()["crawls"]
+        crawls = list(filter(lambda x: x["finished"] != "", crawls))
         crawls.sort(key=lambda x: datetime.fromisoformat(x["finished"]).timestamp())
 
         for crawl in crawls:
@@ -281,12 +320,15 @@ while True:
             logging.info("WACZ available at path '%s' (tries: %d)", wacz_path, i)
 
             content_meta = {}
-            recorder_meta = {}
+            recorder_meta = getRecorderMeta()
 
             with ZipFile(wacz_path, "r") as wacz:
                 d = json.loads(wacz.read("datapackage-digest.json"))
-                content_meta["authsign_software"] = d["signedData"]["software"]
-                content_meta["authsign_domain"] = d["signedData"]["domain"]
+                if "signedData" in d:
+                    content_meta["authsign_software"] = d["signedData"]["software"]
+                    content_meta["authsign_domain"] = d["signedData"]["domain"]
+                else:
+                    logging.info("WACZ missing authsign")
 
                 d = json.loads(wacz.read("datapackage.json"))
                 content_meta["wacz_version"] = d["wacz_version"]

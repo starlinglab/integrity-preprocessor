@@ -18,8 +18,8 @@ def getRecorderMeta(type):
     
     if current_metadata_file_timestamp > metdata_file_timestamp:
    
-        if os.path.exists(integrity_recorder_id.TARGET_PATH):
-            with open(integrity_recorder_id.TARGET_PATH, 'r') as f:
+        if os.path.exists(integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH):
+            with open(integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH, 'r') as f:
                 recorder_meta_all = json.load(f)
                 print("Recorder Metadata Change Detected")
                 metdata_file_timestamp=current_metadata_file_timestamp
@@ -33,7 +33,7 @@ def getRecorderMeta(type):
 def sha256sum(filename):
     with open(filename,"rb") as f:
         bytes = f.read() # read entire file as bytes
-        readable_hash = hashlib.sha256(bytes).hexdigest();
+        readable_hash = hashlib.sha256(bytes).hexdigest()
         return readable_hash
     
 def zipFolder(zipfile, path):
