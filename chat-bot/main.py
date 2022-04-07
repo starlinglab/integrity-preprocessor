@@ -19,6 +19,10 @@ def zipFolder(zipfile, path):
                 filePath = os.path.join(folderName, filename)
                 # Add file to zip
                 zipfile.write(filePath, os.path.basename(filePath))
+                
+def getRecorderMeta(type):
+    return recorder_meta_all
+
 
 tmpFolder="/tmp"
 config = {
@@ -67,12 +71,11 @@ def processInjestor(key):
                          os.mkdir(dir, 0o660)
                     os.rename(os.path.join(localPath,item),os.path.join(localPath,currentFolderDate,item))
         content_meta = {}
-        recorder_meta = {}
-
+        recorder_meta = getRecorderMeta("telegram")
 
     if injestorConfig["type"] == "slack":
         content_meta = {}
-        recorder_meta = {}
+        recorder_meta = getRecorderMeta("slack")
 
 
     if injestorConfig["method"] == "folder":
@@ -103,7 +106,6 @@ def processInjestor(key):
 
 
                         if injestorConfig["type"] == "slack":
-                            recorder_meta['recorder'] = 'slackbot'
                             content_meta['channels']=[]
                             converstaionFileName = os.path.join(localPath,item,'conversations.json')
                             with open(converstaionFileName) as f:
@@ -168,6 +170,11 @@ def processInjestor(key):
 
                         #Rename folder to prevent re-processing
                         os.rename(os.path.join(localPath,item), os.path.join(localPath,"P-" + item))
+
+                        
+if os.path.exists("/root/integrity_recorder_report.json"):
+    with open('/root/integrity_recorder_report.json', 'r') as f:
+        recorder_meta_all = json.load(f)
 
 while True:
     try:
