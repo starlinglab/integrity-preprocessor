@@ -32,7 +32,7 @@ FAIL_DELAY = 10
 LAST_CHECK_WINDOW = 30
 
 # Create temporary folder to stage files before moving them into action folder
-TARGET_PATH_TMP = wacz_path = os.path.join(TARGET_ROOT_PATH, "tmp")
+TARGET_PATH_TMP = os.path.join(TARGET_ROOT_PATH, "tmp")
 TARGET_PATH = wacz_path = os.path.join(TARGET_ROOT_PATH, "input")
 
 if not os.path.exists(TARGET_PATH_TMP):
