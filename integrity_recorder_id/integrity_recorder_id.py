@@ -2,7 +2,7 @@ import os
 import sys
 import json
 from subprocess import check_output
-import load_dotenv
+import dotenv
 
 def dockerComposeHash(repoPath):
     os.chdir(repoPath)
@@ -56,6 +56,6 @@ def build_recorder_id_json():
         with open(TARGET_PATH, 'w') as outfile:
             json.dump(integrity, outfile)
 
-load_dotenv()
+dotenv.load_dotenv()
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config.json")
 TARGET_PATH = os.environ.get("TARGET_PATH", "../integrity_recorder_report.json")
