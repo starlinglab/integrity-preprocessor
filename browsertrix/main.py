@@ -8,24 +8,42 @@ from collections import defaultdict
 import time
 import logging
 from base64 import urlsafe_b64decode
+import dotenv
+from pathlib import Path
+import hashlib
+
+dotenv.load_dotenv()
 
 SOURCE_PATH = os.environ.get("SOURCE_PATH", "/mnt/browsertrix")
-TARGET_PATH = os.environ.get("TARGET_PATH", "/mnt/browsertrix-out")
+TARGET_ROOT_PATH = os.environ.get("TARGET_PATH", "/mnt/browsertrix-out")
 BUCKET = os.environ.get("BUCKET", "test-bucket")
 USERNAME = os.environ.get("BROWSERTRIX_USERNAME")
 PASSWORD = os.environ.get("BROWSERTRIX_PASSWORD")
-HOST = os.environ.get("BROWSERTRIX_HOST", "127.0.0.1:9871")
+HOST = os.environ.get("BROWSERTRIX_HOST", "http://127.0.0.1:9871")
 TMP_DIR = os.environ.get("TMP_DIR", "/tmp/browstertrix-preprocessor")
 LOG_FILE = os.environ.get("LOG_FILE")  # Empty string means stdout
 DATA_DIR = os.environ.get("DATA_DIR")
 PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
-
 DATA_JSON_PATH = os.path.join(DATA_DIR, "data.json")
 
 LOOP_INTERVAL = 60
 FAIL_DELAY = 10
 # Crawl that finished X seconds before the last check is checked again, just in case
 LAST_CHECK_WINDOW = 30
+
+# Create temporary folder to stage files before moving them into action folder
+TARGET_PATH_TMP = os.path.join(TARGET_ROOT_PATH, "tmp")
+TARGET_PATH = wacz_path = os.path.join(TARGET_ROOT_PATH, "input")
+
+if not os.path.exists(TARGET_PATH_TMP):
+    os.makedirs(TARGET_PATH_TMP)
+
+
+def sha256sum(filename):
+    with open(filename, "rb") as f:
+        bytes = f.read()  # read entire file as bytes
+        readable_hash = hashlib.sha256(bytes).hexdigest()
+        return readable_hash
 
 
 def send_to_prometheus(metrics):
@@ -50,7 +68,7 @@ metrics.update(
         "crawl_state_complete": 0,
         "crawl_short_count": 0,
         "request_errors": 0,
-        "crawl_zip_already_exists": 0,
+        "crawl_already_exists": 0,
         "wacz_not_found": 0,
         "tmp_zip_write_failures": 0,
         "tmp_zip_move_failures": 0,
@@ -62,7 +80,7 @@ metrics.update(
 
 
 def log_req_err(r, tries):
-    path = r.url[len("http://" + HOST) :]
+    path = r.url[len(HOST) :]
     logging.error(
         f"{r.request.method} {path} failed with status code {r.status_code} (tries: {tries}):\n{r.text}"
     )
@@ -71,7 +89,7 @@ def log_req_err(r, tries):
 
 
 def log_req_success(r, tries):
-    path = r.url[len("http://" + HOST) :]
+    path = r.url[len(HOST) :]
     logging.info(f"{r.request.method} {path} succeeded (tries: {tries})")
 
 
@@ -92,7 +110,7 @@ def get_access_token():
     i = 1
     while True:
         r = requests.post(
-            f"http://{HOST}/api/auth/jwt/login",
+            f"{HOST}/api/auth/jwt/login",
             data={"username": USERNAME, "password": PASSWORD},
         )
         if r.status_code != 200:
@@ -155,7 +173,7 @@ while True:
 
     i = 1
     while True:
-        r = requests.get(f"http://{HOST}/api/archives", headers=headers())
+        r = requests.get(f"{HOST}/api/archives", headers=headers())
         if r.status_code != 200:
             log_req_err(r, i)
             i += 1
@@ -177,9 +195,7 @@ while True:
 
         i = 1
         while True:
-            r = requests.get(
-                f"http://{HOST}/api/archives/{aid}/crawls", headers=headers()
-            )
+            r = requests.get(f"{HOST}/api/archives/{aid}/crawls", headers=headers())
             if r.status_code != 200:
                 log_req_err(r, i)
                 i += 1
@@ -223,7 +239,7 @@ while True:
             i = 1
             while True:
                 r = requests.get(
-                    f"http://{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
+                    f"{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
                     headers=headers(),
                 )
                 if r.status_code != 200:
@@ -236,23 +252,23 @@ while True:
 
             crawl_reponse = r.json()
 
-            if os.path.exists(os.path.join(TARGET_PATH, crawl["id"] + ".zip")):
-                # Crawl was already done, ZIP is already there
+            wacz_path = os.path.join(
+                SOURCE_PATH, BUCKET, crawl_reponse["resources"][0]["name"]
+            )
+
+            if os.path.exists(wacz_path + ".done"):
+                # Crawl was already done, file is already there
                 logging.warning(
-                    "Skipping because crawl ZIP already exists in %s: %s",
+                    "Skipping because crawl DONE file already exists in %s: %s",
                     crawl["id"],
-                    TARGET_PATH,
+                    TARGET_PATH_TMP,
                 )
-                metrics["crawl_zip_already_exists"] += 1
+                metrics["crawl_already_exists"] += 1
                 # Update data as if it was completed in this check, because it's
                 # already done
                 new_last_check = finish_date.timestamp()
                 new_crawls.append(crawl["id"])
                 continue
-
-            wacz_path = os.path.join(
-                SOURCE_PATH, BUCKET, crawl_reponse["resources"][0]["name"]
-            )
 
             i = 1
             while not os.path.exists(wacz_path):
@@ -283,16 +299,20 @@ while True:
                         if "url" in d:
                             content_meta["pages"][d["id"]] = d["url"]
 
-            zip_path = os.path.join(TMP_DIR, crawl["id"] + ".zip")
+            sha256wacz = sha256sum(wacz_path)
+            zip_path = os.path.join(TMP_DIR, sha256wacz + ".zip")
 
             i = 1
             while True:
                 try:
                     with ZipFile(zip_path, "w") as zipf:
                         zipf.write(wacz_path, os.path.basename(wacz_path))
-                        zipf.writestr("content_metadata.json", json.dumps(content_meta))
                         zipf.writestr(
-                            "recorder_metadata.json", json.dumps(recorder_meta)
+                            sha256wacz + "-meta-content.json", json.dumps(content_meta)
+                        )
+                        zipf.writestr(
+                            sha256wacz + "-meta-recorder.json",
+                            json.dumps(recorder_meta),
                         )
                 except OSError:
                     logging.exception(
@@ -314,25 +334,28 @@ while True:
                 try:
                     shutil.move(
                         zip_path,
-                        os.path.join(TARGET_PATH, crawl["id"] + ".zip.part"),
+                        os.path.join(TARGET_PATH_TMP, sha256wacz + ".zip.part"),
                     )
                 except (OSError, shutil.Error, PermissionError):
                     logging.exception(
-                        "Failed to move temp ZIP to %s (tries: %d)", TARGET_PATH, i
+                        "Failed to move temp ZIP to %s (tries: %d)", TARGET_PATH_TMP, i
                     )
                     metrics["tmp_zip_move_failures"] += 1
                     i += 1
                     time.sleep(FAIL_DELAY)
                 else:
-                    logging.info("Moved temp ZIP to %s (tries: %d)", TARGET_PATH, i)
+                    logging.info("Moved temp ZIP to %s (tries: %d)", TARGET_PATH_TMP, i)
                     break
 
             i = 1
+            sha256zip = sha256sum(
+                os.path.join(TARGET_PATH_TMP, sha256wacz + ".zip.part")
+            )
             while True:
                 try:
                     os.rename(
-                        os.path.join(TARGET_PATH, crawl["id"] + ".zip.part"),
-                        os.path.join(TARGET_PATH, crawl["id"] + ".zip"),
+                        os.path.join(TARGET_PATH_TMP, sha256wacz + ".zip.part"),
+                        os.path.join(TARGET_PATH, sha256zip + ".zip"),
                     )
                 except OSError:
                     logging.exception(
@@ -352,6 +375,8 @@ while True:
                     break
 
             logging.info("Successfully processed crawl %s", crawl["id"])
+            Path(wacz_path + ".done").touch()
+
             metrics["processed_crawls"] += 1
             # Update data since processing of crawl was successful
             new_last_check = finish_date.timestamp()
