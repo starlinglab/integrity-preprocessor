@@ -229,7 +229,7 @@ while True:
             data[aid] = {"last_check": 0, "crawls": []}
 
         new_last_check = data[aid]["last_check"]
-        new_crawls = []
+        new_crawls = data[aid]['crawls']
 
         i = 1
         while True:
