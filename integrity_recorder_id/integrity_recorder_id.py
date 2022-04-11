@@ -1,43 +1,39 @@
 import os
 import sys
 import json
-from subprocess import check_output
+from subprocess import getoutput
 import dotenv
-
 
 def dockerComposeHash(repoPath):
     os.chdir(repoPath)
 
-    docker_raw = check_output(["docker-compose", "ps"]).decode("utf-8")
+    docker_raw = getoutput("docker-compose ps")
     docker_lines = docker_raw.split("\n")
     docker_services = {}
+
+    # remove first 2 lines (headers)
     docker_lines.pop(0)
     docker_lines.pop(0)
+
     for line in docker_lines:
         if len(line) > 1:
             items = line.split()
-            docker_sha = check_output(
-                ["docker", "inspect", "--format='{{.Image}}'", items[0]]
-            ).decode("utf-8")
-            docker_sha_clean = docker_sha.split("'")
-            docker_sha = docker_sha_clean[1]
+            docker_sha = getoutput(
+                "docker inspect --format='{{.Image}}' " + items[0]
+            )
             docker_services[items[0]] = docker_sha
     return docker_services
-
 
 def gitHash(repoPath):
     os.chdir(repoPath)
 
     gitHash = {}
-    git_raw = check_output(["git", "rev-parse", "HEAD"]).decode("utf-8")
-    gitHash["hash"] = git_raw.strip()
-    gitHash["hash"] = git_raw.strip()
-
-    git_branch = check_output(["git", "remote", "-v"]).decode("utf-8")
+    git_raw = getoutput("git rev-parse HEAD")
+    git_branch = getoutput("git remote -v")
     git_branchsplit = git_branch.split()
     gitHash["repo"] = os.path.basename(git_branchsplit[1])
 
-    git_branch = check_output(["git", "branch", "-v"]).decode("utf-8")
+    git_branch = getoutput("git branch -v")
     git_branchsplit = git_branch.split()
     gitHash["branch"] = git_branchsplit[1]
 
@@ -64,7 +60,6 @@ def build_recorder_id_json():
 
         with open(INTEGRITY_PREPROCESSOR_TARGET_PATH, "w") as outfile:
             json.dump(integrity, outfile)
-
 
 dotenv.load_dotenv()
 INTEGRITY_PREPROCESSOR_CONFIG_PATH = os.environ.get(
