@@ -23,29 +23,50 @@ import integrity_recorder_id
 dotenv.load_dotenv()
 
 SOURCE_PATH = os.environ.get("SOURCE_PATH", "/mnt/browsertrix")
-TARGET_ROOT_PATH = os.environ.get("TARGET_PATH", "/mnt/browsertrix-out")
+TARGET_DEFAULT_ROOT_PATH = os.environ.get("TARGET_PATH", "/mnt/browsertrix-out")
 BUCKET = os.environ.get("BUCKET", "test-bucket")
 USERNAME = os.environ.get("BROWSERTRIX_USERNAME")
 PASSWORD = os.environ.get("BROWSERTRIX_PASSWORD")
 HOST = os.environ.get("BROWSERTRIX_HOST", "http://127.0.0.1:9871")
 TMP_DIR = os.environ.get("TMP_DIR", "/tmp/browstertrix-preprocessor")
 LOG_FILE = os.environ.get("LOG_FILE")  # Empty string means stdout
-DATA_DIR = os.environ.get("DATA_DIR")
+DATA_JSON_PATH = os.environ.get("DATA_FILE")
+CONFIG_FILE = os.environ.get("CONFIG_FILE")
 PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
-DATA_JSON_PATH = os.path.join(DATA_DIR, "data.json")
 
 LOOP_INTERVAL = 60
 FAIL_DELAY = 10
 # Crawl that finished X seconds before the last check is checked again, just in case
 LAST_CHECK_WINDOW = 30
 
-# Create temporary folder to stage files before moving them into action folder
-TARGET_PATH_TMP = os.path.join(TARGET_ROOT_PATH, "tmp")
-TARGET_PATH = wacz_path = os.path.join(TARGET_ROOT_PATH, "input")
+# Load config
+config_data = {}
+if os.path.exists(CONFIG_FILE):
+    with open(CONFIG_FILE,"r") as f:
+        config_data=json.load(f)
 
-if not os.path.exists(TARGET_PATH_TMP):
-    os.makedirs(TARGET_PATH_TMP)
+TARGET_PATH_TMP={}
+TARGET_PATH={}
+TARGET_ROOT_PATH={}
 
+# Process collections in config
+if "collections" in config_data:
+    for aid in config_data['collections']:
+        # Create temporary folder to stage files before moving them into action folder
+        TARGET_ROOT_PATH[aid]=config_data['collections'][aid]['target_path']
+        TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")
+        TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], "input")
+        if not os.path.exists(TARGET_PATH_TMP[aid]):
+            os.makedirs(TARGET_PATH_TMP[aid])
+        logging.info(f"Loaded collection archive {aid}")
+
+# Create default entries
+TARGET_ROOT_PATH['default'] = TARGET_DEFAULT_ROOT_PATH
+TARGET_PATH_TMP['default'] = os.path.join(TARGET_ROOT_PATH['default'], "tmp")
+TARGET_PATH['default'] = wacz_path = os.path.join(TARGET_ROOT_PATH['default'], "input")
+
+if not os.path.exists(TARGET_PATH_TMP['default'] ):
+    os.makedirs(TARGET_PATH_TMP['default'] )
 
 metdata_file_timestamp = 0
 def getRecorderMeta():
@@ -127,10 +148,8 @@ def log_req_success(r, tries):
     path = r.url[len(HOST) :]
     logging.info(f"{r.request.method} {path} succeeded (tries: {tries})")
 
-
 access_token = None
 access_token_exp = 0
-
 
 def get_access_token():
     global access_token, access_token_exp
@@ -182,7 +201,6 @@ logging.basicConfig(
 logging.info("Started browsertrix preprocessor")
 
 os.makedirs(TMP_DIR, mode=0o755, exist_ok=True)
-os.makedirs(DATA_DIR, mode=0o755, exist_ok=True)
 
 # Data format:
 # {
@@ -222,6 +240,11 @@ while True:
 
     for archive in r.json()["archives"]:
         aid = archive["id"]
+
+        if aid in TARGET_PATH:
+            current_collection = aid
+        else:
+            current_collection = "default"
 
         logging.info("Working on archive %s", aid)
 
@@ -300,7 +323,7 @@ while True:
                 logging.warning(
                     "Skipping because crawl DONE file already exists in %s: %s",
                     crawl["id"],
-                    TARGET_PATH_TMP,
+                    os.path.basename(wacz_path),
                 )
                 metrics["crawl_already_exists"] += 1
                 # Update data as if it was completed in this check, because it's
@@ -376,28 +399,28 @@ while True:
                 try:
                     shutil.move(
                         zip_path,
-                        os.path.join(TARGET_PATH_TMP, sha256wacz + ".zip.part"),
+                        os.path.join(TARGET_PATH_TMP[current_collection], sha256wacz + ".zip.part"),
                     )
                 except (OSError, shutil.Error, PermissionError):
                     logging.exception(
-                        "Failed to move temp ZIP to %s (tries: %d)", TARGET_PATH_TMP, i
+                        "Failed to move temp ZIP to %s (tries: %d)", TARGET_PATH_TMP[current_collection], i
                     )
                     metrics["tmp_zip_move_failures"] += 1
                     i += 1
                     time.sleep(FAIL_DELAY)
                 else:
-                    logging.info("Moved temp ZIP to %s (tries: %d)", TARGET_PATH_TMP, i)
+                    logging.info("Moved temp ZIP to %s (tries: %d)", TARGET_PATH_TMP[current_collection], i)
                     break
 
             i = 1
             sha256zip = sha256sum(
-                os.path.join(TARGET_PATH_TMP, sha256wacz + ".zip.part")
+                os.path.join(TARGET_PATH_TMP[current_collection], sha256wacz + ".zip.part")
             )
             while True:
                 try:
                     os.rename(
-                        os.path.join(TARGET_PATH_TMP, sha256wacz + ".zip.part"),
-                        os.path.join(TARGET_PATH, sha256zip + ".zip"),
+                        os.path.join(TARGET_PATH_TMP[current_collection], sha256wacz + ".zip.part"),
+                        os.path.join(TARGET_PATH[current_collection], sha256zip + ".zip"),
                     )
                 except OSError:
                     logging.exception(
