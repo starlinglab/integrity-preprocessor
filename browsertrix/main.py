@@ -229,7 +229,7 @@ while True:
             data[aid] = {"last_check": 0, "crawls": []}
 
         new_last_check = data[aid]["last_check"]
-        new_crawls = []
+        new_crawls = data[aid]['crawls']
 
         i = 1
         while True:
@@ -245,11 +245,10 @@ while True:
         # Sort crawls by finish time, from ones that finished first to those
         # that finished most recently
         crawls = r.json()["crawls"]
-        crawls = list(filter(lambda x: x["finished"] != "", crawls))
+        crawls = list(filter(lambda x: x["finished"] != None, crawls))
         crawls.sort(key=lambda x: datetime.fromisoformat(x["finished"]).timestamp())
 
         for crawl in crawls:
-            logging.info("Looking at crawl %s", crawl["id"])
 
             # Save metrics after each crawl
             send_to_prometheus(metrics)
@@ -317,9 +316,14 @@ while True:
                 metrics["wacz_not_found"] += 1
                 i += 1
                 time.sleep(FAIL_DELAY)
-            logging.info("WACZ available at path '%s' (tries: %d)", wacz_path, i)
 
             content_meta = {}
+
+            metaFilename =  TARGET_ROOT_PATH + "/preprocessor_metadata/" + crawl["cid"] + ".json"
+            if (os.path.exists(metaFilename)):                
+                f = open(metaFilename)                
+                content_meta['recorder'] = json.load(f)
+
             recorder_meta = getRecorderMeta()
 
             with ZipFile(wacz_path, "r") as wacz:
@@ -335,11 +339,15 @@ while True:
                 content_meta["created"] = d["created"]
 
                 content_meta["pages"] = {}
-                with wacz.open("pages/pages.jsonl") as jsonl_file:
-                    for line in jsonl_file.readlines():
-                        d = json.loads(line)
-                        if "url" in d:
-                            content_meta["pages"][d["id"]] = d["url"]
+
+                if "pages/pages.jsonl" in wacz.namelist():
+                    with wacz.open("pages/pages.jsonl") as jsonl_file:
+                        for line in jsonl_file.readlines():
+                            d = json.loads(line)
+                            if "url" in d:
+                                content_meta["pages"][d["id"]] = d["url"]
+                else:
+                    logging.info("Missing pages/pages.jsonl in archive %s", aid)
 
             sha256wacz = sha256sum(wacz_path)
             zip_path = os.path.join(TMP_DIR, sha256wacz + ".zip")
@@ -348,7 +356,7 @@ while True:
             while True:
                 try:
                     with ZipFile(zip_path, "w") as zipf:
-                        zipf.write(wacz_path, os.path.basename(wacz_path))
+                        zipf.write(wacz_path, sha256wacz + ".wacz")
                         zipf.writestr(
                             sha256wacz + "-meta-content.json", json.dumps(content_meta)
                         )
@@ -415,6 +423,12 @@ while True:
                         i,
                     )
                     break
+
+            # Write the ID to a file for refrence
+            if (os.path.exists(metaFilename)):
+                f = open(metaFilename + ".id.txt","w")
+                f.write(sha256zip + ".zip")
+                f.close()
 
             logging.info("Successfully processed crawl %s", crawl["id"])
             Path(wacz_path + ".done").touch()
