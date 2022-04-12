@@ -342,7 +342,7 @@ while True:
 
             content_meta = {}
 
-            metaFilename =  TARGET_ROOT_PATH + "/preprocessor_metadata/" + crawl["cid"] + ".json"
+            metaFilename =  TARGET_ROOT_PATH[current_collection] + "/preprocessor_metadata/" + crawl["cid"] + ".json"
             if (os.path.exists(metaFilename)):                
                 f = open(metaFilename)                
                 content_meta['recorder'] = json.load(f)
