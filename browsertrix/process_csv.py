@@ -15,7 +15,7 @@ TARGET_ROOT_PATH = os.environ.get("TARGET_PATH", "/mnt/browsertrix-out")
 BUCKET = os.environ.get("BUCKET", "test-bucket")
 USERNAME = os.environ.get("BROWSERTRIX_USERNAME")
 PASSWORD = os.environ.get("BROWSERTRIX_PASSWORD")
-HOST = os.environ.get("BROWSERTRIX_HOST", "http://127.0.0.1:9871")
+BROWSERTRIX_URL = os.environ.get("BROWSERTRIX_URL", "http://127.0.0.1:9871")
 TMP_DIR = os.environ.get("TMP_DIR", "/tmp/browstertrix-preprocessor")
 LOG_FILE = os.environ.get("LOG_FILE")  # Empty string means stdout
 DATA_DIR = os.environ.get("DATA_DIR")
@@ -29,7 +29,7 @@ def ConfigureCrawl(itemID, target_urls, additional_json):
 
     # Authenticate with Browsertrix
     auth = {"username": USERNAME, "password": PASSWORD}
-    URL = "https://browsertrix.stg.starlinglab.org/api/auth/jwt/login"
+    URL = f"{BROWSERTRIX_URL}/api/auth/jwt/login"
     # response = requests.post( URL, data=auth)
     access_token = ""
     resp = requests.post(URL, data=auth)
@@ -58,7 +58,7 @@ def ConfigureCrawl(itemID, target_urls, additional_json):
         },
     }
     URL = (
-        "https://browsertrix.stg.starlinglab.org/api/archives/" + AID + "/crawlconfigs/"
+        f"{BROWSERTRIX_URL}/api/archives/" + AID + "/crawlconfigs/"
     )
     r = requests.post(URL, json=config, headers=headers)
     res = r.json()
@@ -68,7 +68,7 @@ def ConfigureCrawl(itemID, target_urls, additional_json):
 
     # Start Crawl
     URL = (
-        "https://browsertrix.stg.starlinglab.org/api/archives/"
+        f"{BROWSERTRIX_URL}/api/archives/"
         + AID
         + "/crawlconfigs/"
         + CID
