@@ -27,7 +27,7 @@ TARGET_DEFAULT_ROOT_PATH = os.environ.get("TARGET_PATH", "/mnt/browsertrix-out")
 BUCKET = os.environ.get("BUCKET", "test-bucket")
 USERNAME = os.environ.get("BROWSERTRIX_USERNAME")
 PASSWORD = os.environ.get("BROWSERTRIX_PASSWORD")
-HOST = os.environ.get("BROWSERTRIX_HOST", "http://127.0.0.1:9871")
+BROWSERTRIX_URL = os.environ.get("BROWSERTRIX_URL", "http://127.0.0.1:9871")
 TMP_DIR = os.environ.get("TMP_DIR", "/tmp/browstertrix-preprocessor")
 LOG_FILE = os.environ.get("LOG_FILE")  # Empty string means stdout
 DATA_JSON_PATH = os.environ.get("DATA_FILE")
@@ -136,7 +136,7 @@ metrics.update(
 
 
 def log_req_err(r, tries):
-    path = r.url[len(HOST) :]
+    path = r.url[len(BROWSERTRIX_URL) :]
     logging.error(
         f"{r.request.method} {path} failed with status code {r.status_code} (tries: {tries}):\n{r.text}"
     )
@@ -145,7 +145,7 @@ def log_req_err(r, tries):
 
 
 def log_req_success(r, tries):
-    path = r.url[len(HOST) :]
+    path = r.url[len(BROWSERTRIX_URL) :]
     logging.info(f"{r.request.method} {path} succeeded (tries: {tries})")
 
 access_token = None
@@ -164,7 +164,7 @@ def get_access_token():
     i = 1
     while True:
         r = requests.post(
-            f"{HOST}/api/auth/jwt/login",
+            f"{BROWSERTRIX_URL}/api/auth/jwt/login",
             data={"username": USERNAME, "password": PASSWORD},
         )
         if r.status_code != 200:
@@ -229,7 +229,7 @@ while True:
 
     i = 1
     while True:
-        r = requests.get(f"{HOST}/api/archives", headers=headers())
+        r = requests.get(f"{BROWSERTRIX_URL}/api/archives", headers=headers())
         if r.status_code != 200:
             log_req_err(r, i)
             i += 1
@@ -256,7 +256,7 @@ while True:
 
         i = 1
         while True:
-            r = requests.get(f"{HOST}/api/archives/{aid}/crawls", headers=headers())
+            r = requests.get(f"{BROWSERTRIX_URL}/api/archives/{aid}/crawls", headers=headers())
             if r.status_code != 200:
                 log_req_err(r, i)
                 i += 1
@@ -301,7 +301,7 @@ while True:
             i = 1
             while True:
                 r = requests.get(
-                    f"{HOST}/api/archives/{aid}/crawls/{crawl['id']}.json",
+                    f"{BROWSERTRIX_URL}/api/archives/{aid}/crawls/{crawl['id']}.json",
                     headers=headers(),
                 )
                 if r.status_code != 200:
