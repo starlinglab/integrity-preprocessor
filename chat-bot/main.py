@@ -65,10 +65,13 @@ def generate_metadata_content(
         max_date = (
             datetime.datetime.utcfromtimestamp(meta_max_date).isoformat() + "Z",
         )
+    if meta_min_date > -1:
+        cosmetic_date = datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
+            "%B, %d %Y"
+        )
+    else:
+        cosmetic_date = "an unknown date"
 
-    cosmetic_date = datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
-        "%B, %d %Y"
-    )
     meta_content = deepcopy(default_content)
     meta_content["name"] = f"Chat archive of {bot_type} on {cosmetic_date}"
     meta_content[
@@ -213,6 +216,19 @@ def processInjestor(key):
                                 for chan in channelData:
                                     if channelData[chan]["is_member"] == True:
                                         meta_channels.append(channelData[chan]["name"])
+                            archive_file_name = os.path.join(
+                                localPath, item, "archive.jsonl"
+                            )
+                            with open(archive_file_name, "r") as f:
+                                lines = f.readlines()
+                                for line in lines:
+                                    channelData = json.loads(line)
+                                    if meta_min_date == -1 or meta_min_date > float(
+                                        channelData["ts"]
+                                    ):
+                                        meta_min_date = float(channelData["ts"])
+                                    if meta_max_date < float(channelData["ts"]):
+                                        meta_max_date = float(channelData["ts"])
 
                         if injestorConfig["type"] == "telegram":
                             print("telergram processing")
@@ -263,42 +279,14 @@ def processInjestor(key):
                                                         channelData = json.load(
                                                             archiveContentFileHandle
                                                         )
-                                                        channelName = (
-                                                            channelData["message"][
-                                                                "chat"
-                                                            ]["type"]
-                                                            + " - "
-                                                            + channelData["message"][
-                                                                "chat"
-                                                            ]["title"]
-                                                        )
-                                                        if (
-                                                            meta_min_date == -1
-                                                            or meta_min_date
-                                                            > channelData["message"][
-                                                                "date"
-                                                            ]
-                                                        ):
-                                                            meta_min_date = channelData[
-                                                                "message"
-                                                            ]["date"]
-                                                        if (
-                                                            meta_max_date
-                                                            < channelData["message"][
-                                                                "date"
-                                                            ]
-                                                        ):
-                                                            meta_max_date = channelData[
-                                                                "message"
-                                                            ]["date"]
+                                                        channelName = ( channelData["message"]["chat"]["type"] + " - " + channelData["message"]["chat"]["title"])
+                                                        if (meta_min_date == -1 or meta_min_date> channelData["message"]["date"]):
+                                                            meta_min_date = channelData["message"]["date"]
+                                                        if (meta_max_date < channelData["message"]["date"]):
+                                                            meta_max_date = channelData["message"]["date"]
 
-                                                        if (
-                                                            channelName
-                                                            not in meta_channels
-                                                        ):
-                                                            meta_channels.append(
-                                                                channelName
-                                                            )
+                                                        if (channelName not in meta_channels):
+                                                            meta_channels.append(channelName)
 
                     # Zip up content of directory to a temp file
                     tmpFileName = os.path.join(
