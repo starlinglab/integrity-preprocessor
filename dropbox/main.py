@@ -6,6 +6,36 @@ import hashlib
 import json
 from watchdog.observers import Observer
 import watchdog.events
+import dotenv
+
+
+# Kludge
+import sys
+
+sys.path.append(
+    os.path.dirname(os.path.realpath(__file__)) + "/../integrity_recorder_id"
+)
+import integrity_recorder_id
+
+dotenv.load_dotenv()
+
+
+def prepare_metadata_recorder():
+    global metdata_file_timestamp, recorder_meta_all
+
+    current_metadata_file_timestamp = os.path.getmtime(
+        integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH
+    )
+
+    if current_metadata_file_timestamp > metdata_file_timestamp:
+        if os.path.exists(integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH):
+            with open(
+                integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH, "r"
+            ) as f:
+                recorder_meta_all = json.load(f)
+                print("Recorder Metadata Change Detected")
+                metdata_file_timestamp = current_metadata_file_timestamp
+    return recorder_meta_all
 
 class MyEventHandler(watchdog.events.PatternMatchingEventHandler):
     def on_created(self, event):
