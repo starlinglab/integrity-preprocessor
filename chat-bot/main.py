@@ -14,7 +14,7 @@ metdata_file_timestamp = 0
 def getRecorderMeta(type):
     global metdata_file_timestamp, recorder_meta_all
 
-    current_metadata_file_timestamp = os.path.getmtime(integrity_recorder_id.TARGET_PATH)
+    current_metadata_file_timestamp = os.path.getmtime(integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH)
     
     if current_metadata_file_timestamp > metdata_file_timestamp:
    
@@ -23,12 +23,7 @@ def getRecorderMeta(type):
                 recorder_meta_all = json.load(f)
                 print("Recorder Metadata Change Detected")
                 metdata_file_timestamp=current_metadata_file_timestamp
-
-    res = {}
-    for x in recorder_meta_all:
-        if recorder_meta_all[x]['type']==type or recorder_meta_all[x]['type'] == 'integrity':
-            res[x]=recorder_meta_all[x]
-    return res
+    return recorder_meta_all
 
 def sha256sum(filename):
     with open(filename,"rb") as f:
