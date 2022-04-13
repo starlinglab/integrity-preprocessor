@@ -1,3 +1,5 @@
+from copy import deepcopy
+from dataclasses import make_dataclass
 from zipfile import ZipFile
 import requests
 from datetime import datetime
@@ -42,18 +44,18 @@ LAST_CHECK_WINDOW = 30
 # Load config
 config_data = {}
 if os.path.exists(CONFIG_FILE):
-    with open(CONFIG_FILE,"r") as f:
-        config_data=json.load(f)
+    with open(CONFIG_FILE, "r") as f:
+        config_data = json.load(f)
 
-TARGET_PATH_TMP={}
-TARGET_PATH={}
-TARGET_ROOT_PATH={}
+TARGET_PATH_TMP = {}
+TARGET_PATH = {}
+TARGET_ROOT_PATH = {}
 
 # Process collections in config
 if "collections" in config_data:
-    for aid in config_data['collections']:
+    for aid in config_data["collections"]:
         # Create temporary folder to stage files before moving them into action folder
-        TARGET_ROOT_PATH[aid]=config_data['collections'][aid]['target_path']
+        TARGET_ROOT_PATH[aid] = config_data["collections"][aid]["target_path"]
         TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")
         TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], "input")
         if not os.path.exists(TARGET_PATH_TMP[aid]):
@@ -61,15 +63,16 @@ if "collections" in config_data:
         logging.info(f"Loaded collection archive {aid}")
 
 # Create default entries
-TARGET_ROOT_PATH['default'] = TARGET_DEFAULT_ROOT_PATH
-TARGET_PATH_TMP['default'] = os.path.join(TARGET_ROOT_PATH['default'], "tmp")
-TARGET_PATH['default'] = wacz_path = os.path.join(TARGET_ROOT_PATH['default'], "input")
+TARGET_ROOT_PATH["default"] = TARGET_DEFAULT_ROOT_PATH
+TARGET_PATH_TMP["default"] = os.path.join(TARGET_ROOT_PATH["default"], "tmp")
+TARGET_PATH["default"] = wacz_path = os.path.join(TARGET_ROOT_PATH["default"], "input")
 
-if not os.path.exists(TARGET_PATH_TMP['default'] ):
-    os.makedirs(TARGET_PATH_TMP['default'] )
+if not os.path.exists(TARGET_PATH_TMP["default"]):
+    os.makedirs(TARGET_PATH_TMP["default"])
 
 metdata_file_timestamp = 0
-def getRecorderMeta():
+
+def prepare_metadata_recorder():
     global metdata_file_timestamp, recorder_meta_all
 
     current_metadata_file_timestamp = os.path.getmtime(
@@ -84,15 +87,8 @@ def getRecorderMeta():
                 recorder_meta_all = json.load(f)
                 print("Recorder Metadata Change Detected")
                 metdata_file_timestamp = current_metadata_file_timestamp
-
-    res = {}
-    for x in recorder_meta_all:
-        if (
-            recorder_meta_all[x]["type"] == "browsertrix"
-            or recorder_meta_all[x]["type"] == "integrity"
-        ):
-            res[x] = recorder_meta_all[x]
-    return res
+    # TODO remove unused recorders
+    return recorder_meta_all
 
 
 def sha256sum(filename):
@@ -100,6 +96,39 @@ def sha256sum(filename):
         bytes = f.read()  # read entire file as bytes
         readable_hash = hashlib.sha256(bytes).hexdigest()
         return readable_hash
+
+default_author = {
+    "@type": "Organization",
+    "identifier": "https://starlinglab.org",
+    "name": "Starling Lab",
+}
+
+default_content = {
+    "name": "Web archive",
+    "mine": "application/wacz",
+    "description": "Archive collected by browsertrix-cloud",
+    "author": default_author,
+}
+
+
+def generate_metadata_content(
+    meta_crawl_config, meta_additional, meta_authsign, meta_pages, meta_date_created
+):
+
+    extras = {}
+    private = {}
+    private["crawlConfig"] = meta_crawl_config
+    private["additionalData"] = meta_additional
+    extras = deepcopy(meta_authsign)
+    extras["pages"] = meta_pages
+
+    meta_content = deepcopy(default_content)
+    meta_content["dateCreated"] = meta_date_created
+    meta_content["extras"] = extras
+    meta_content["private"] = private
+    meta_content["timestamp"] = datetime.utcnow().isoformat() + "Z"
+
+    return {"contentMetadata": meta_content}
 
 
 def send_to_prometheus(metrics):
@@ -252,11 +281,13 @@ while True:
             data[aid] = {"last_check": 0, "crawls": []}
 
         new_last_check = data[aid]["last_check"]
-        new_crawls = data[aid]['crawls']
+        new_crawls = data[aid]["crawls"]
 
         i = 1
         while True:
-            r = requests.get(f"{BROWSERTRIX_URL}/api/archives/{aid}/crawls", headers=headers())
+            r = requests.get(
+                f"{BROWSERTRIX_URL}/api/archives/{aid}/crawls", headers=headers()
+            )
             if r.status_code != 200:
                 log_req_err(r, i)
                 i += 1
@@ -340,37 +371,72 @@ while True:
                 i += 1
                 time.sleep(FAIL_DELAY)
 
-            content_meta = {}
+            # Meta data collection and generation
+            recorder_meta = prepare_metadata_recorder()
 
-            metaFilename =  TARGET_ROOT_PATH[current_collection] + "/preprocessor_metadata/" + crawl["cid"] + ".json"
-            if (os.path.exists(metaFilename)):                
-                f = open(metaFilename)                
-                content_meta['recorder'] = json.load(f)
+            meta_additional = "" 
+            meta_crawl = ""
+            meta_authsign = {} 
+            meta_pages = ""  #
+            meta_date_created = "" 
 
-            recorder_meta = getRecorderMeta()
+            # Get craw cawlconfig from API
+            while True:
+                r = requests.get(
+                    f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{crawl['cid']}",
+                    headers=headers(),
+                )
+                if r.status_code != 200:
+                    log_req_err(r)
+                    i += 1
+                    time.sleep(FAIL_DELAY)
+                    continue
+                log_req_success(r, i)
+                break
 
+            meta_crawl = r.json()
+
+            # Variable also used later on to write final SHA256 ID
+            meta_additional_filename = (
+                TARGET_ROOT_PATH[current_collection]
+                + "/preprocessor_metadata/"
+                + crawl["cid"]
+                + ".json"
+            )
+            if os.path.exists(meta_additional_filename):
+                f = open(meta_additional_filename)
+                meta_additional = json.load(f)
+
+            # WACZ metadata extraction
             with ZipFile(wacz_path, "r") as wacz:
                 d = json.loads(wacz.read("datapackage-digest.json"))
                 if "signedData" in d:
-                    content_meta["authsign_software"] = d["signedData"]["software"]
-                    content_meta["authsign_domain"] = d["signedData"]["domain"]
+                    meta_authsign["authsignSoftware"] = d["signedData"]["software"]
+                    meta_authsign["authsignDomain"] = d["signedData"]["domain"]
                 else:
                     logging.info("WACZ missing authsign")
 
                 d = json.loads(wacz.read("datapackage.json"))
-                content_meta["wacz_version"] = d["wacz_version"]
-                content_meta["created"] = d["created"]
+                meta_authsign["waczVersion"] = d["wacz_version"]
+                meta_date_created = d["created"]
 
-                content_meta["pages"] = {}
-
+                meta_pages = {}
                 if "pages/pages.jsonl" in wacz.namelist():
                     with wacz.open("pages/pages.jsonl") as jsonl_file:
                         for line in jsonl_file.readlines():
                             d = json.loads(line)
                             if "url" in d:
-                                content_meta["pages"][d["id"]] = d["url"]
+                                meta_pages[d["id"]] = d["url"]
                 else:
                     logging.info("Missing pages/pages.jsonl in archive %s", aid)
+
+            content_meta = generate_metadata_content(
+                meta_crawl,
+                meta_additional,
+                meta_authsign,
+                meta_pages,
+                meta_date_created,
+            )
 
             sha256wacz = sha256sum(wacz_path)
             zip_path = os.path.join(TMP_DIR, sha256wacz + ".zip")
@@ -407,28 +473,44 @@ while True:
                 try:
                     shutil.move(
                         zip_path,
-                        os.path.join(TARGET_PATH_TMP[current_collection], sha256wacz + ".zip.part"),
+                        os.path.join(
+                            TARGET_PATH_TMP[current_collection],
+                            sha256wacz + ".zip.part",
+                        ),
                     )
                 except (OSError, shutil.Error, PermissionError):
                     logging.exception(
-                        "Failed to move temp ZIP to %s (tries: %d)", TARGET_PATH_TMP[current_collection], i
+                        "Failed to move temp ZIP to %s (tries: %d)",
+                        TARGET_PATH_TMP[current_collection],
+                        i,
                     )
                     metrics["tmp_zip_move_failures"] += 1
                     i += 1
                     time.sleep(FAIL_DELAY)
                 else:
-                    logging.info("Moved temp ZIP to %s (tries: %d)", TARGET_PATH_TMP[current_collection], i)
+                    logging.info(
+                        "Moved temp ZIP to %s (tries: %d)",
+                        TARGET_PATH_TMP[current_collection],
+                        i,
+                    )
                     break
 
             i = 1
             sha256zip = sha256sum(
-                os.path.join(TARGET_PATH_TMP[current_collection], sha256wacz + ".zip.part")
+                os.path.join(
+                    TARGET_PATH_TMP[current_collection], sha256wacz + ".zip.part"
+                )
             )
             while True:
                 try:
                     os.rename(
-                        os.path.join(TARGET_PATH_TMP[current_collection], sha256wacz + ".zip.part"),
-                        os.path.join(TARGET_PATH[current_collection], sha256zip + ".zip"),
+                        os.path.join(
+                            TARGET_PATH_TMP[current_collection],
+                            sha256wacz + ".zip.part",
+                        ),
+                        os.path.join(
+                            TARGET_PATH[current_collection], sha256zip + ".zip"
+                        ),
                     )
                 except OSError:
                     logging.exception(
@@ -448,8 +530,8 @@ while True:
                     break
 
             # Write the ID to a file for refrence
-            if (os.path.exists(metaFilename)):
-                f = open(metaFilename + ".id.txt","w")
+            if os.path.exists(meta_additional_filename):
+                f = open(meta_additional_filename + ".id.txt", "w")
                 f.write(sha256zip + ".zip")
                 f.close()
 
