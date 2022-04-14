@@ -112,12 +112,13 @@ default_content = {
 
 
 def generate_metadata_content(
-    meta_crawl_config, meta_additional, meta_authsign, meta_pages, meta_date_created
+    meta_crawl_config, meta_crawl_data, meta_additional, meta_authsign, meta_pages, meta_date_created
 ):
 
     extras = {}
     private = {}
-    private["crawlConfig"] = meta_crawl_config
+    private["crawlConfigs"] = meta_crawl_config
+    private["meta_crawl_data"] = meta_crawl_data
     private["additionalData"] = meta_additional
     extras = deepcopy(meta_authsign)
     extras["pages"] = meta_pages
@@ -407,6 +408,7 @@ while True:
                 f = open(meta_additional_filename)
                 meta_additional = json.load(f)
 
+###################
             # WACZ metadata extraction
             with ZipFile(wacz_path, "r") as wacz:
                 d = json.loads(wacz.read("datapackage-digest.json"))
@@ -429,9 +431,10 @@ while True:
                                 meta_pages[d["id"]] = d["url"]
                 else:
                     logging.info("Missing pages/pages.jsonl in archive %s", aid)
-
+#######################
             content_meta = generate_metadata_content(
                 meta_crawl,
+                crawl_reponse,
                 meta_additional,
                 meta_authsign,
                 meta_pages,
