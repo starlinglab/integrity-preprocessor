@@ -45,30 +45,38 @@ default_author = {
 
 default_content = {
     "name": "Chat bot archive",
-    "mine": "application/wacz",
+    "mine": "application/zip",
     "description": "Archive collected by chat bot",
     "author": default_author,
 }
 
 
 def generate_metadata_content(
-    bot_type, meta_channels, meta_date_created, meta_min_date, meta_max_date
+    bot_type, meta_channels, meta_min_date, meta_max_date, injestor
 ):
 
     min_date = ""
     max_date = ""
+    meta_date_create = ""
     if meta_min_date > -1:
-        min_date = (
+        meta_date_create = min_date = (
             datetime.datetime.utcfromtimestamp(meta_min_date).isoformat() + "Z",
-        )
+        )        
     if meta_max_date > -1:
-        max_date = (
+        meta_date_create = max_date = (
             datetime.datetime.utcfromtimestamp(meta_max_date).isoformat() + "Z",
         )
+    if meta_date_create =="" :
+        meta_date_create = datetime.datetime.nowutc().isoformat() + "Z",
+
     if meta_min_date > -1:
         cosmetic_date = datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
-            "%B, %d %Y"
+            "%B %d, %Y"
         )
+        cosmetic_time = " at " + datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
+            "%H:%M"
+        )
+        
     else:
         cosmetic_date = "an unknown date"
 
@@ -78,13 +86,13 @@ def generate_metadata_content(
     meta_content["name"] = f"{bot_name} archive on {cosmetic_date}"
 
     channel_text = ""
-    if len(meta_channels) > 1:
-        channel_list = ",".join("meta_channels")
+    if len(meta_channels) > 0:
+        channel_list = ",".join(meta_channels)          
         channel_text = f" of [ {channel_list} ]"
 
     meta_content[
         "description"
-    ] = f"Archive of {channel_text} by {bot_name} bot starting on {min_date}"
+    ] = f"Archive{channel_text} by {bot_name} bot starting on {cosmetic_date}{cosmetic_time}"
 
     extras = {}
     private = {}
@@ -92,10 +100,25 @@ def generate_metadata_content(
     extras["channels"] = meta_channels
     extras["dateRange"] = {"from": min_date, "to": max_date}
 
-    meta_content["dateCreated"] = meta_date_created
+
+    if bot_type == "slack":
+        private["slack"] = {}
+        private["slack"]['botAccount'] = injestor['botAccount']
+        private["slack"]['workspace'] = injestor['workspace']
+    if bot_type == "signal":
+        private["signal"] = {}
+        private["signal"]['phone'] = injestor['phone']
+    if bot_type == "telegram":
+        private["telegram"] = {}
+        private["telegram"]['botAccount'] = injestor['botAccount']
+
+
+    meta_content["dateCreated"] = meta_date_create
     meta_content["extras"] = extras
     meta_content["private"] = private
     meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
+    
+
 
     return {"contentMetadata": meta_content}
 
@@ -125,12 +148,15 @@ config = {
             "method": "folder",
             "localpath": "/mnt/store/slack_archive_bot_workspace-0",
             "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-slack",
+            "workspace": "test-environment",
+            "botAccount": "Name of bot"
         },
         "telegram_archive_bot_testbot1": {
             "type": "telegram",
             "method": "folder",
             "localpath": "/mnt/store/telegram_archive_bot_testbot1/archive",
             "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-telegram",
+            "botAccount": "bot name here",
         },
     }
 }
@@ -184,7 +210,7 @@ def processInjestor(key):
         content_meta = {}
         recorder_meta = getRecorderMeta("slack_bot")
 
-    meta_channels = []
+        meta_channels = []
     if injestorConfig["method"] == "folder":
         localPath = injestorConfig["localpath"]
         for item in os.listdir(localPath):
@@ -306,9 +332,9 @@ def processInjestor(key):
                     content_meta = generate_metadata_content(
                         meta_bot_type,
                         meta_channels,
-                        meta_date_created,
                         meta_min_date,
                         meta_max_date,
+                        injestorConfig
                     )
 
                     # Generate SHA and rename asset
