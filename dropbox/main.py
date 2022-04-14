@@ -38,17 +38,29 @@ def generate_metadata_content(
     meta_date_created, dropboxPath, uploader_name, meta_extras
 ):
     extras = meta_extras
-    extras["dropboxPath"] = dropboxPath
     private = {}
 
-    meta_content = {}
+    meta_content = default_content
+
+    meta_content["description"] = "Web archive uploaded to Dropbox"
+
+    if "waczTitle" in extras:
+        meta_content["name"] = f"WebArchive - {extras['waczTitle']}"
+    else:
+        meta_content["name"] = f"WebArchive"
+
     create_datetime = datetime.datetime.utcfromtimestamp(meta_date_created)
     meta_content["dateCreated"] = create_datetime.isoformat() + "Z"
+    meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
+
+    if uploader_name != "":
+        private["uploaderName"] = uploader_name
+    private["uploadDirectory"] = os.path.dirname(dropboxPath)
+    private["uploadFilename"] = os.path.basename(dropboxPath)
+
     meta_content["extras"] = extras
     meta_content["private"] = private
-    meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
-    if uploader_name != "":
-        meta_content["private"]["uploaderName"] = uploader_name
+
     return {"contentMetadata": meta_content}
 
 
@@ -94,7 +106,7 @@ def processWacz(wacz_path):
                 extras["authsignDomain"] = d["signedData"]["domain"]
             elif "publicKey" in d["signedData"]:
                 extras["localsignSoftware"] = d["signedData"]["software"]
-                extras["localsignpublicKey"] = d["signedData"]["publicKey"]
+                extras["localsignPublicKey"] = d["signedData"]["publicKey"]
                 extras["localsignSignaturey"] = d["signedData"]["signature"]
             else:
                 logging.info("WACZ missing signature ")
@@ -103,6 +115,7 @@ def processWacz(wacz_path):
         extras["waczVersion"] = d["wacz_version"]
         extras["software"] = d["software"]
         extras["dateCrawled"] = d["created"]
+        extras["waczTitle"] = d["title"]
 
         extras["pages"] = {}
         if "pages/pages.jsonl" in wacz.namelist():
@@ -158,7 +171,6 @@ class WatchFolder:
         bundleFileName = os.path.join(stagePath, sha256asset + ".zip")
 
         meta_date_create = os.path.getmtime(assetFileName)
-        meta_assetpath = os.path.dirname(assetFileName)
 
         extras = {}
         if "processWacz" in self.config and self.config["processWacz"]:
@@ -166,7 +178,7 @@ class WatchFolder:
             extras = processWacz(assetFileName)
 
         content_meta = generate_metadata_content(
-            meta_date_create, meta_assetpath, meta_uploader_name, extras
+            meta_date_create, assetFileName, meta_uploader_name, extras
         )
         recorder_meta = prepare_metadata_recorder()
 
