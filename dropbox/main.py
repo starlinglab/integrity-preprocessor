@@ -34,8 +34,11 @@ default_content = {
 }
 
 
-def generate_metadata_content(meta_date_created, dropboxPath, uploader_name):
-    extras = {"dropboxPath": dropboxPath}
+def generate_metadata_content(
+    meta_date_created, dropboxPath, uploader_name, meta_extras
+):
+    extras = meta_extras
+    extras["dropboxPath"] = dropboxPath
     private = {}
 
     meta_content = {}
@@ -76,6 +79,42 @@ def sha256sum(filename):
         readable_hash = hashlib.sha256(bytes).hexdigest()
         return readable_hash
 
+
+def processWacz(wacz_path):
+    # WACZ metadata extraction
+    with zipfile.ZipFile(wacz_path, "r") as wacz:
+        d = json.loads(wacz.read("datapackage-digest.json"))
+        if "signedData" in d:
+
+            extras = {}
+
+            # auth sign data
+            if "authsignDomain" in d["signedData"]:
+                extras["authsignSoftware"] = d["signedData"]["software"]
+                extras["authsignDomain"] = d["signedData"]["domain"]
+            elif "publicKey" in d["signedData"]:
+                extras["localsignSoftware"] = d["signedData"]["software"]
+                extras["localsignpublicKey"] = d["signedData"]["publicKey"]
+                extras["localsignSignaturey"] = d["signedData"]["signature"]
+            else:
+                logging.info("WACZ missing signature ")
+
+        d = json.loads(wacz.read("datapackage.json"))
+        extras["waczVersion"] = d["wacz_version"]
+        extras["software"] = d["software"]
+        extras["dateCrawled"] = d["created"]
+
+        extras["pages"] = {}
+        if "pages/pages.jsonl" in wacz.namelist():
+            with wacz.open("pages/pages.jsonl") as jsonl_file:
+                for line in jsonl_file.readlines():
+                    d = json.loads(line)
+                    if "url" in d:
+                        extras["pages"][d["id"]] = d["url"]
+        else:
+            logging.info("Missing pages/pages.jsonl in archive %s", aid)
+
+        return extras
 
 class WatchFolder:
     "Class defining a scan folder"
@@ -121,8 +160,13 @@ class WatchFolder:
         meta_date_create = os.path.getmtime(assetFileName)
         meta_assetpath = os.path.dirname(assetFileName)
 
+        extras = {}
+        if "processWacz" in self.config and self.config["processWacz"]:
+            print("Processing file as a wacz")
+            extras = processWacz(assetFileName)
+
         content_meta = generate_metadata_content(
-            meta_date_create, meta_assetpath, meta_uploader_name
+            meta_date_create, meta_assetpath, meta_uploader_name, extras
         )
         recorder_meta = prepare_metadata_recorder()
 

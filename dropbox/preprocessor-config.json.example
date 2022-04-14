@@ -5,6 +5,14 @@
         "allowedPatterns": ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.pdf"],
         "extractName": true
     },
+    "dropbox1wavz": {
+        "sourcePath": "/mnt/store/dropbox/Dropbox/integrity-stg-starlinglab-org",
+        "targetPath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-dropbox",
+        "allowedPatterns": ["*.wacz"],
+        "extractName": true,
+        "processWacz": true,
+
+    },
     "notdropbox": {
         "sourcePath": "/root/integrity-preprocessor/dropbox/test",
         "targetPath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-dropbox",
