@@ -73,10 +73,18 @@ def generate_metadata_content(
         cosmetic_date = "an unknown date"
 
     meta_content = deepcopy(default_content)
-    meta_content["name"] = f"Chat archive of {bot_type} on {cosmetic_date}"
+    
+    bot_name= bot_type.title()
+    meta_content["name"] = f"{bot_name} archive on {cosmetic_date}"
+
+    channel_text = ""
+    if len(meta_channels) > 1:
+        channel_list = ",".join("meta_channels")
+        channel_text = f" of [ {channel_list} ]"
+
     meta_content[
         "description"
-    ] = f"Archive of chat by {bot_type} bot on starting on {cosmetic_date}"
+    ] = f"Archive of {channel_text} by {bot_name} bot starting on {min_date}"
 
     extras = {}
     private = {}
