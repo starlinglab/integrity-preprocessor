@@ -140,11 +140,13 @@ scan_folder = []
 with open(CONFIG_FILE) as f:
     config = json.load(f)
     for item in config:
-        WatchFolder(config[item])
+        scan_folder.append(WatchFolder(config[item]))
 
 try:
     while True:
         time.sleep(1)
 except KeyboardInterrupt:
     print("Keyboard interrupt received.")
-scan_folder.stop()
+
+for item in scan_folder:
+    item.stop()
