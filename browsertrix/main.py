@@ -107,7 +107,7 @@ default_author = {
 
 default_content = {
     "name": "Web archive",
-    "mine": "application/wacz",
+    "mime": "application/wacz",
     "description": "Archive collected by browsertrix-cloud",
     "author": default_author,
 }
@@ -163,9 +163,30 @@ def generate_metadata_content(
     private["crawlConfigs"] = meta_crawl_config
     private["crawlData"] = meta_crawl_data
     private["additionalData"] = meta_additional
+
     extras = deepcopy(meta_extra)
 
     meta_content = deepcopy(default_content)
+
+    create_date = meta_date_created.split("T")[0]
+    meta_content["name"] = f"Web archive on {create_date}"
+
+    pagelist = ""
+    if "pages" in extras:
+        i = []
+        c = 0
+        for item in extras["pages"]:
+            c = c + 1
+            if c == 4:
+                i.append("...")
+                break
+            i.append(extras["pages"][item])
+        pagelist = "[ " + ", ".join(i[:3]) + " ]"
+
+    meta_content[
+        "description"
+    ] = f"Web archive {pagelist} captured using Browsertrix on {create_date}"
+
     meta_content["dateCreated"] = meta_date_created
     meta_content["extras"] = extras
     meta_content["private"] = private
