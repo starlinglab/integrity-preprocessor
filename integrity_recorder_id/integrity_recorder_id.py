@@ -41,16 +41,19 @@ def gitHash(repoPath):
     os.chdir(repoPath)
 
     git_raw = getoutput("git rev-parse HEAD")
-    git_branch = getoutput("git remote -v")
-    git_branchsplit = git_branch.split()
-    git_repository = os.path.basename(git_branchsplit[1])
+    git_branch = getoutput("git branch --show-current")
+    git_commit = getoutput("git rev-parse HEAD")
+    git_status = getoutput("git status --porcelain")
 
-    git_branch = getoutput("git branch -v")
-    git_branchsplit = git_branch.split()
-    git_branch = git_branchsplit[1]
-
-    git_commit = ""
-    git_clean = False
+    if git_status == "":
+         git_clean = True
+    else:
+        git_clean = False
+    
+    git_repository = getoutput("git remote get-url origin")
+    # Sanitize password if any
+    if "@" in git_repository and "https" in git_repository:
+        git_repository = "https://" + git_repository.split("@",2)[1]        
 
     gitHash = {
         "type": "git",
