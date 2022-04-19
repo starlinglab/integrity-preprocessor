@@ -23,9 +23,14 @@ PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
 DATA_JSON_PATH = os.path.join(DATA_DIR, "data.json")
 
 
+TARGET_ROOT_PATH = (
+    "/mnt/integrity_store/starling/internal/starling-lab-test/test-web-archive-dfrlab/"
+)
+
+
 def ConfigureCrawl(itemID, target_urls, additional_json):
 
-    AID = "33117110-111a-470d-906c-56121522b88d"
+    AID = "791b347c-0061-4efa-bb10-a85583294920"
 
     # Authenticate with Browsertrix
     auth = {"username": USERNAME, "password": PASSWORD}
@@ -53,7 +58,7 @@ def ConfigureCrawl(itemID, target_urls, additional_json):
             "depth": -1,
             "limit": 0,
             "extraHops": 0,
-            "behaviorTimeout": 200,
+            "behaviorTimeout": 300,
             "behaviors": "autoscroll,autoplay,autofetch,siteSpecific",
         },
     }
@@ -128,9 +133,7 @@ with open("starling_sample.csv", newline="\n", encoding="utf8") as csvfile:
                 json_metadata[heading[column_index]] = item
                 column_index += 1
 
-            print(json.dumps(json_metadata, indent=2))
             ConfigureCrawl(TS, URL, json_metadata)
 
-            if countlines > 20:
+            if countlines >= 20:
                 break
-            break
