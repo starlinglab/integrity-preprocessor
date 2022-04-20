@@ -105,24 +105,85 @@ default_author = {
 
 default_content = {
     "name": "Web archive",
-    "mine": "application/wacz",
+    "mime": "application/wacz",
     "description": "Archive collected by browsertrix-cloud",
     "author": default_author,
 }
 
+#########################################
+# Turn into a module, shared with dropbox#
+# #######################################
+def processWacz(wacz_path):
+    # WACZ metadata extraction
+    with ZipFile(wacz_path, "r") as wacz:
+        d = json.loads(wacz.read("datapackage-digest.json"))
+        extras = {}
+
+        if "signedData" in d:
+            # auth sign data
+            if "authsignDomain" in d["signedData"]:
+                extras["authsignSoftware"] = d["signedData"]["software"]
+                extras["authsignDomain"] = d["signedData"]["domain"]
+            elif "publicKey" in d["signedData"]:
+                extras["localsignSoftware"] = d["signedData"]["software"]
+                extras["localsignPublicKey"] = d["signedData"]["publicKey"]
+                extras["localsignSignaturey"] = d["signedData"]["signature"]
+            else:
+                logging.info("WACZ missing signature ")
+
+        d = json.loads(wacz.read("datapackage.json"))
+        extras["waczVersion"] = d["wacz_version"]
+        extras["software"] = d["software"]
+        extras["dateCrawled"] = d["created"]
+
+        if "title" in d:
+            extras["waczTitle"] = d["title"]
+
+        extras["pages"] = {}
+        if "pages/pages.jsonl" in wacz.namelist():
+            with wacz.open("pages/pages.jsonl") as jsonl_file:
+                for line in jsonl_file.readlines():
+                    d = json.loads(line)
+                    if "url" in d:
+                        extras["pages"][d["id"]] = d["url"]
+        else:
+            logging.info("Missing pages/pages.jsonl in archive %s", aid)
+
+        return extras
+
 
 def generate_metadata_content(
-    meta_crawl_config, meta_additional, meta_authsign, meta_pages, meta_date_created
+    meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created
 ):
 
     extras = {}
     private = {}
-    private["crawlConfig"] = meta_crawl_config
+    private["crawlConfigs"] = meta_crawl_config
+    private["crawlData"] = meta_crawl_data
     private["additionalData"] = meta_additional
-    extras = deepcopy(meta_authsign)
-    extras["pages"] = meta_pages
+
+    extras = deepcopy(meta_extra)
 
     meta_content = deepcopy(default_content)
+
+    create_date = meta_date_created.split("T")[0]
+    meta_content["name"] = f"Web archive on {create_date}"
+
+    pagelist = ""
+    if "pages" in extras:
+        i = []
+        c = 0
+        for item in extras["pages"]:
+            c = c + 1
+            if c == 4:
+                i.append("...")
+            i.append(extras["pages"][item])
+        pagelist = "[ " + ", ".join(i[:3]) + " ]"
+
+    meta_content[
+        "description"
+    ] = f"Web archive {pagelist} captured using Browsertrix on {create_date}"
+
     meta_content["dateCreated"] = meta_date_created
     meta_content["extras"] = extras
     meta_content["private"] = private
@@ -342,10 +403,10 @@ while True:
                 log_req_success(r, i)
                 break
 
-            crawl_reponse = r.json()
+            crawl_json = r.json()
 
             wacz_path = os.path.join(
-                SOURCE_PATH, BUCKET, crawl_reponse["resources"][0]["name"]
+                SOURCE_PATH, BUCKET, crawl_json["resources"][0]["name"]
             )
 
             if os.path.exists(wacz_path + ".done"):
@@ -374,11 +435,9 @@ while True:
             # Meta data collection and generation
             recorder_meta = prepare_metadata_recorder()
 
-            meta_additional = "" 
+            meta_additional = ""
             meta_crawl = ""
-            meta_authsign = {} 
-            meta_pages = ""  #
-            meta_date_created = "" 
+            meta_date_created = ""
 
             # Get craw cawlconfig from API
             while True:
@@ -407,34 +466,14 @@ while True:
                 f = open(meta_additional_filename)
                 meta_additional = json.load(f)
 
-            # WACZ metadata extraction
-            with ZipFile(wacz_path, "r") as wacz:
-                d = json.loads(wacz.read("datapackage-digest.json"))
-                if "signedData" in d:
-                    meta_authsign["authsignSoftware"] = d["signedData"]["software"]
-                    meta_authsign["authsignDomain"] = d["signedData"]["domain"]
-                else:
-                    logging.info("WACZ missing authsign")
-
-                d = json.loads(wacz.read("datapackage.json"))
-                meta_authsign["waczVersion"] = d["wacz_version"]
-                meta_date_created = d["created"]
-
-                meta_pages = {}
-                if "pages/pages.jsonl" in wacz.namelist():
-                    with wacz.open("pages/pages.jsonl") as jsonl_file:
-                        for line in jsonl_file.readlines():
-                            d = json.loads(line)
-                            if "url" in d:
-                                meta_pages[d["id"]] = d["url"]
-                else:
-                    logging.info("Missing pages/pages.jsonl in archive %s", aid)
+            meta_extra = processWacz(wacz_path)
+            meta_date_created = crawl_json["started"]
 
             content_meta = generate_metadata_content(
                 meta_crawl,
+                crawl_json,
                 meta_additional,
-                meta_authsign,
-                meta_pages,
+                meta_extra,
                 meta_date_created,
             )
 
@@ -532,7 +571,7 @@ while True:
             # Write the ID to a file for refrence
             if os.path.exists(meta_additional_filename):
                 f = open(meta_additional_filename + ".id.txt", "w")
-                f.write(sha256zip + ".zip")
+                f.write(sha256wacz)
                 f.close()
 
             logging.info("Successfully processed crawl %s", crawl["id"])

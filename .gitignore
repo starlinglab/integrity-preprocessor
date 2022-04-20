@@ -1,0 +1,4 @@
+browsertrix/.env
+integrity_recorder_id/.env
+integrity_recorder_id/__pycache__
+integrity_recorder_id/__pycache__/*
