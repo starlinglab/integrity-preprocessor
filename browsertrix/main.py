@@ -72,6 +72,7 @@ if not os.path.exists(TARGET_PATH_TMP["default"]):
 
 metdata_file_timestamp = 0
 
+
 def prepare_metadata_recorder():
     global metdata_file_timestamp, recorder_meta_all
 
@@ -96,6 +97,7 @@ def sha256sum(filename):
         bytes = f.read()  # read entire file as bytes
         readable_hash = hashlib.sha256(bytes).hexdigest()
         return readable_hash
+
 
 default_author = {
     "@type": "Organization",
@@ -238,8 +240,10 @@ def log_req_success(r, tries):
     path = r.url[len(BROWSERTRIX_URL) :]
     logging.info(f"{r.request.method} {path} succeeded (tries: {tries})")
 
+
 access_token = None
 access_token_exp = 0
+
 
 def get_access_token():
     global access_token, access_token_exp
@@ -287,8 +291,44 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-
 logging.info("Started browsertrix preprocessor")
+
+
+def update_crawl_config(cid, aid, data):
+    i = 0
+    print(data)
+    while True:
+        r = requests.patch(
+            f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}",
+            headers=headers(),
+            json=data,
+        )
+        if r.status_code != 200:
+            log_req_err(r)
+            i += 1
+            time.sleep(FAIL_DELAY)
+            continue
+        log_req_success(r, i)
+        break
+    return r.json()
+
+
+def get_crawl_config(cid, aid):
+    i = 0
+    while True:
+        r = requests.get(
+            f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}",
+            headers=headers(),
+        )
+        if r.status_code != 200:
+            log_req_err(r)
+            i += 1
+            time.sleep(FAIL_DELAY)
+            continue
+        log_req_success(r, i)
+        break
+    return r.json()
+
 
 os.makedirs(TMP_DIR, mode=0o755, exist_ok=True)
 
@@ -328,6 +368,8 @@ while True:
         log_req_success(r, i)
         break
 
+    crawl_running_count = 0
+
     for archive in r.json()["archives"]:
         aid = archive["id"]
 
@@ -357,13 +399,25 @@ while True:
             log_req_success(r, i)
             break
 
+        crawls = r.json()["crawls"]
+
+        # Count the number of currently running crawls
+        for crawl in crawls:
+            if crawl["state"] == "running":
+                crawl_running_count = crawl_running_count + 1
+
         # Sort crawls by finish time, from ones that finished first to those
         # that finished most recently
-        crawls = r.json()["crawls"]
         crawls = list(filter(lambda x: x["finished"] != None, crawls))
         crawls.sort(key=lambda x: datetime.fromisoformat(x["finished"]).timestamp())
 
         for crawl in crawls:
+
+            # If crawl is finished but marked as _R_unning, change it to _D_one
+            crawl_config = get_crawl_config(crawl["cid"], aid)
+            if crawl_config["name"][:3] == "_R_":
+                new_name = "_D_" + crawl_config["name"][3:]
+                update_crawl_config(crawl["cid"], aid, {"name": new_name})
 
             # Save metrics after each crawl
             send_to_prometheus(metrics)
@@ -440,20 +494,7 @@ while True:
             meta_date_created = ""
 
             # Get craw cawlconfig from API
-            while True:
-                r = requests.get(
-                    f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{crawl['cid']}",
-                    headers=headers(),
-                )
-                if r.status_code != 200:
-                    log_req_err(r)
-                    i += 1
-                    time.sleep(FAIL_DELAY)
-                    continue
-                log_req_success(r, i)
-                break
-
-            meta_crawl = r.json()
+            meta_crawl = get_crawl_config(crawl["cid"], aid)
 
             # Variable also used later on to write final SHA256 ID
             meta_additional_filename = (
@@ -587,5 +628,60 @@ while True:
 
         data[aid] = {"last_check": new_last_check, "crawls": new_crawls}
         write_data(data)
+
+    # Process crawl queue
+    i = 1
+    while True:
+        r = requests.get(f"{BROWSERTRIX_URL}/api/archives", headers=headers())
+        if r.status_code != 200:
+            log_req_err(r, i)
+            i += 1
+            time.sleep(FAIL_DELAY)
+            continue
+        log_req_success(r, i)
+        break
+
+    queuelist = []
+    running_count = 0
+    for archive in r.json()["archives"]:
+        while True:
+            aid = archive["id"]
+            r = requests.get(
+                f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs", headers=headers()
+            )
+            if r.status_code != 200:
+                log_req_err(r, i)
+                i += 1
+                time.sleep(FAIL_DELAY)
+                continue
+            log_req_success(r, i)
+            break
+
+        # Check if crawl is to be queued and add it to array
+        for crawl_config in r.json()["crawlConfigs"]:
+            crawl_name = crawl_config["name"]
+            if crawl_name[:3] == "_Q_":
+                queuelist.append(
+                    {"aid": aid, "id": crawl_config["id"], "name": crawl_name}
+                )
+
+    # If less then 3 crawls happening, and there is a queue, start the next item
+    while crawl_running_count < 3 and len(queuelist) > 0:
+
+        r = queuelist.pop()
+        air = r["aid"]
+        cid = r["id"]
+        name = r["name"][3:]
+
+        r = requests.post(
+            f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}/run",
+            headers=headers(),
+        )
+        crawl_running_count = crawl_running_count + 1
+        print("Started crawl")
+        crawlid = r.json()["started"]
+        new_name = "_R_" + name
+        data = {"name": new_name}
+        r = update_crawl_config(cid, aid, data)
 
     time.sleep(LOOP_INTERVAL)
