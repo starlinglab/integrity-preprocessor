@@ -641,7 +641,6 @@ while True:
         break
 
     queuelist = []
-    running_count = 0
     for archive in r.json()["archives"]:
         while True:
             aid = archive["id"]
