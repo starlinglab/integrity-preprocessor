@@ -296,7 +296,6 @@ logging.info("Started browsertrix preprocessor")
 
 def update_crawl_config(cid, aid, data):
     i = 0
-    print(data)
     while True:
         r = requests.patch(
             f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}",
@@ -669,7 +668,7 @@ while True:
     while crawl_running_count < 3 and len(queuelist) > 0:
 
         r = queuelist.pop()
-        air = r["aid"]
+        aid = r["aid"]
         cid = r["id"]
         name = r["name"][3:]
 
@@ -678,7 +677,7 @@ while True:
             headers=headers(),
         )
         crawl_running_count = crawl_running_count + 1
-        print("Started crawl")
+        print(f"Started crawl of {aid}/{cid}")
         crawlid = r.json()["started"]
         new_name = "_R_" + name
         data = {"name": new_name}
