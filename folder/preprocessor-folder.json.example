@@ -1,0 +1,24 @@
+{
+    "dropbox1": {
+        "sourcePath": "/mnt/store/dropbox/Dropbox/integrity-stg-starlinglab-org",
+        "targetPath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-dropbox",
+        "allowedPatterns": ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.pdf"],
+        "extractName": true,
+        "method": "dropbox"
+    },
+    "dropbox1wacz": {
+        "sourcePath": "/mnt/store/dropbox/Dropbox/integrity-stg-starlinglab-org",
+        "targetPath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-dropbox",
+        "allowedPatterns": ["*.wacz"],
+        "extractName": true,
+        "processWacz": true,
+        "method": "dropbox"
+
+    },
+    "notdropbox": {
+        "sourcePath": "/root/integrity-preprocessor/dropbox/test",
+        "targetPath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-dropbox",
+        "allowedPatterns": ["*.zip"],
+        "method": "folder"
+    }
+}
