@@ -13,12 +13,19 @@
         "extractName": true,
         "processWacz": true,
         "method": "dropbox"
-
     },
-    "notdropbox": {
-        "sourcePath": "/root/integrity-preprocessor/dropbox/test",
+    "dropbox1ProofMode": {
+        "sourcePath": "/mnt/store/dropbox/Dropbox/integrity-stg-starlinglab-org",
         "targetPath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-dropbox",
         "allowedPatterns": ["*.zip"],
+        "extractName": true,
+        "processProofMode": true,
+        "method": "dropbox"
+    },
+    "notdropbox_wav": {
+        "sourcePath": "/root/RandomFolder",
+        "targetPath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-folder",
+        "allowedPatterns": ["*.wav"],
         "method": "folder"
     }
 }
