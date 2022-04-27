@@ -302,7 +302,6 @@ def parse_proofmode_data(proofmode_path):
                                 if item.strip() != "":
                                     json_metadata[heading[column_index]] = item
                                 column_index += 1
-                    print(json.dumps(json_metadata, indent=5))
                     source_filename = os.path.basename(json_metadata["File Path"])
                     result[source_filename] = json_metadata
     return result
@@ -330,7 +329,6 @@ def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, outputP
         bundleFileName + ".part",
         os.path.join(outputPath, sha256zip + ".zip"),
     )
-    print(os.path.join(outputPath, sha256zip + ".zip"))
 
 
 def processInjestor(key):
