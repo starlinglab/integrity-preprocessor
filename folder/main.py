@@ -153,7 +153,7 @@ def parse_proofmode_data(proofmode_path):
 
     data = ""
     filename = ""
-    # WACZ metadata extraction
+    # ProofMode metadata extraction
     with ZipFile(proofmode_path, "r") as proofmode:
 
         for file in proofmode.namelist():
