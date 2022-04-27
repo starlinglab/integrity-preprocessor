@@ -1,3 +1,5 @@
+import copy
+import io
 import datetime
 import dotenv
 import hashlib
@@ -8,6 +10,7 @@ import time
 import watchdog.events
 from zipfile import ZipFile
 import magic
+import csv
 
 from watchdog.observers import Observer
 
@@ -41,7 +44,7 @@ def generate_metadata_content(
 
     # guess mime type
     mime = magic.Magic(mime=True)
-    meta_mime_type = mime.from_file(sourcePath) 
+    meta_mime_type = mime.from_file(sourcePath)
 
     extras = meta_extras
     private = {}
@@ -52,11 +55,13 @@ def generate_metadata_content(
 
     if "waczTitle" in extras:
         meta_content["name"] = f"WebArchive - {extras['waczTitle']}"
-        meta_content["description"] = f"WebArchive {extras['waczTitle']} uploaded via {meta_method}"
+        meta_content[
+            "description"
+        ] = f"WebArchive {extras['waczTitle']} uploaded via {meta_method}"
     else:
         meta_content["name"] = f"File via {meta_method}"
         meta_content["description"] = f"File uploaded via {meta_method}"
-        meta_content['mime'] = meta_mime_type
+        meta_content["mime"] = meta_mime_type
 
     create_datetime = datetime.datetime.utcfromtimestamp(meta_date_created)
     meta_content["dateCreated"] = create_datetime.isoformat() + "Z"
@@ -102,7 +107,6 @@ def sha256sum(filename):
         return readable_hash
 
 
-
 ##############################################
 # Turn into a module, shared with browsertrix#
 # ############################################
@@ -144,6 +148,74 @@ def processWacz(wacz_path):
 
         return extras
 
+
+def parse_proofmode_data(proofmode_path):
+
+    data = ""
+    filename = ""
+    # WACZ metadata extraction
+    with ZipFile(proofmode_path, "r") as proofmode:
+
+        for file in proofmode.namelist():
+            if os.path.splitext(file)[1] == ".csv":
+                filename = file
+
+        if filename != "":
+            data = proofmode.read(filename).decode("utf-8")
+
+    if filename == "":
+        return {}
+    data_split = data.split("\n")
+
+    current_line = 0
+
+    res = []
+    brokenline = 0
+    for line in data_split:
+        # Add to arary if its the next line
+        if len(res) <= current_line:
+            res.append("")
+        # Skip over is it is an empty line
+        if len(line.strip()) < 4:
+            current_line = current_line - 1
+        # poorly parsed line here, bring it up one level
+        elif len(line) < 78:
+            current_line = current_line - 1
+            brokenline = 1
+        # this is the next line after the broken lines, so still broken
+        elif brokenline == 1:
+            current_line = current_line - 1
+            brokenline = 0
+
+        # Add line to current line (moving broken lines up)
+        res[current_line] = res[current_line] + line.strip()
+        current_line = current_line + 1
+
+    heading = None
+    with io.StringIO("\n".join(res), newline="\n") as csvfile:
+        csv_reader = csv.reader(
+            csvfile,
+            delimiter=",",
+        )
+        json_metadata_template = {}
+        json_metadata = {}
+        for row in csv_reader:
+            # Read Heading
+            if heading == None:
+                column_index = 0
+                for col_name in row:
+                    json_metadata_template[col_name] = ""
+                    column_index += 1
+                heading = row
+            else:
+                if json_metadata == None:
+                    json_metadata = copy.deepcopy(json_metadata_template)
+                column_index = 0
+                for item in row:
+                    if item.strip() != "":
+                        json_metadata[heading[column_index]] = item
+                    column_index += 1
+    return json_metadata
 
 
 class WatchFolder:
@@ -197,14 +269,17 @@ class WatchFolder:
         if "processWacz" in self.config and self.config["processWacz"]:
             print("Processing file as a wacz")
             extras = processWacz(assetFileName)
+        if "processProofMode" in self.config and self.config["processProofMode"]:
+            print("Processing file as a ProofMode")
+            extras = parse_proofmode_data(assetFileName)
 
         content_meta = generate_metadata_content(
             meta_date_create, assetFileName, meta_uploader_name, extras, meta_method
         )
         recorder_meta = prepare_metadata_recorder()
-
+        extension = os.path.splitext(assetFileName)[1]
         with ZipFile(bundleFileName + ".part", "w") as archive:
-            archive.write(assetFileName, os.path.basename(assetFileName))
+            archive.write(assetFileName, os.path.basename(sha256asset + extension))
             archive.writestr(
                 sha256asset + "-meta-content.json", json.dumps(content_meta)
             )
@@ -219,6 +294,7 @@ class WatchFolder:
     def stop(self):
         self.observer.stop()
         self.observer.join()
+
 
 config = {}
 scan_folder = []
