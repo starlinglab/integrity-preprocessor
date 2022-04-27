@@ -681,5 +681,6 @@ while True:
         new_name = "_R_" + name
         data = {"name": new_name}
         r = update_crawl_config(cid, aid, data)
+        print(r)
 
     time.sleep(LOOP_INTERVAL)

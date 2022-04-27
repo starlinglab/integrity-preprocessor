@@ -2,7 +2,7 @@
   "collections":{
     "00000000-0000-0000-0000-0000000000000": {
       "target_path":"/mnt/integrity_store/starling/internal/starling-lab-test/test-web-archive-collection2/"
-    }
+    },
     "11111111-0000-0000-0000-0000000000000": {
       "target_path":"/mnt/integrity_store/starling/internal/starling-lab-test/test-web-archive-collection3/"
     }
