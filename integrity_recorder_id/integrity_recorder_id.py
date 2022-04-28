@@ -12,8 +12,7 @@ def dockerComposeHash(repoPath):
     docker_lines = docker_raw.split("\n")
     docker_services = {}
 
-    # remove first 2 lines (headers)
-    docker_lines.pop(0)
+    # remove first 1 line (headers)
     docker_lines.pop(0)
 
     docker_data = []
