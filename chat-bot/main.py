@@ -186,32 +186,6 @@ def zipFolder(zipfile, path):
 
 
 tmpFolder = "/tmp"
-config = {
-    "injestors": {
-        "slack_archive_bot_workspace-0": {
-            "type": "slack",
-            "method": "folder",
-            "localpath": "/mnt/store/slack_archive_bot_workspace-0",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-slack",
-            "workspace": "test-environment",
-            "botAccount": "Name of bot",
-        },
-        "telegram_archive_bot_testbot1": {
-            "type": "telegram",
-            "method": "folder",
-            "localpath": "/mnt/store/telegram_archive_bot_testbot1/archive",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-telegram",
-            "botAccount": "bot name here",
-        },
-        "signal_bot_testbot1": {
-            "type": "signal",
-            "method": "file",
-            "processing": "proofmode",
-            "localpath": "/mnt/store/signal_archive_bot",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-signal-proofmode",
-        },
-    }
-}
 
 
 def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, outputPath):
