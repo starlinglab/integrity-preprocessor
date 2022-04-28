@@ -28,7 +28,7 @@ TARGET_ROOT_PATH = (
 )
 
 
-def ConfigureCrawl(itemID, target_urls, additional_json):
+def ConfigureCrawl(itemID, target_urls, meta_data):
 
     AID = "791b347c-0061-4efa-bb10-a85583294920"
 
@@ -87,10 +87,16 @@ def ConfigureCrawl(itemID, target_urls, additional_json):
 
     # Prepeare meta data
     meta = {
-        "crawl_id": CRAWL_ID,
-        "crawl_template_id": CID,
-        "crawl_config": config,
-        "additional_data": additional_json,
+        "private": {
+            "additionalData": {                    
+                "crawl_id": CRAWL_ID,
+                "crawl_template_id": CID,
+                "crawl_config": config
+            }            
+        },
+        "extra": {
+            "DFRLabMetadata": meta_data,
+        }
     }
 
     # Save file as json
