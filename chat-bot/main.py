@@ -66,7 +66,7 @@ def genreate_folder_metadata(meta_content, meta_channels, meta_min_date, meta_ma
             datetime.datetime.utcfromtimestamp(meta_max_date).isoformat() + "Z",
         )
     if meta_date_create == "":
-        meta_date_create = (datetime.datetime.nowutc().isoformat() + "Z",)
+        meta_date_create = (datetime.datetime.utcnow().isoformat() + "Z",)
 
     if meta_min_date > -1:
         cosmetic_date = datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
@@ -99,13 +99,14 @@ def genreate_folder_metadata(meta_content, meta_channels, meta_min_date, meta_ma
     return {"contentMetadata": meta_content}
 
 
-def generate_metadata_content(
-    bot_type, meta_channels, meta_min_date, meta_max_date, injestor
-):
+def generate_metadata_content(meta_chat, injestor):
+    bot_type = injestor["type"]
+    meta_min_date = meta_chat["minDate"]
+    meta_max_date = meta_chat["maxDate"]
+    meta_channels = meta_chat["channels"]
 
-    min_date = ""
-    max_date = ""
     meta_date_create = ""
+    cosmetic_time = ""
     if meta_min_date > -1:
         meta_date_create = min_date = (
             datetime.datetime.utcfromtimestamp(meta_min_date).isoformat() + "Z",
@@ -115,7 +116,7 @@ def generate_metadata_content(
             datetime.datetime.utcfromtimestamp(meta_max_date).isoformat() + "Z",
         )
     if meta_date_create == "":
-        meta_date_create = (datetime.datetime.nowutc().isoformat() + "Z",)
+        meta_date_create = (datetime.datetime.utcnow().isoformat() + "Z",)
 
     if meta_min_date > -1:
         cosmetic_date = datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
@@ -185,6 +186,32 @@ def zipFolder(zipfile, path):
 
 
 tmpFolder = "/tmp"
+config = {
+    "injestors": {
+        "slack_archive_bot_workspace-0": {
+            "type": "slack",
+            "method": "folder",
+            "localpath": "/mnt/store/slack_archive_bot_workspace-0",
+            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-slack",
+            "workspace": "test-environment",
+            "botAccount": "Name of bot",
+        },
+        "telegram_archive_bot_testbot1": {
+            "type": "telegram",
+            "method": "folder",
+            "localpath": "/mnt/store/telegram_archive_bot_testbot1/archive",
+            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-telegram",
+            "botAccount": "bot name here",
+        },
+        "signal_bot_testbot1": {
+            "type": "signal",
+            "method": "file",
+            "processing": "proofmode",
+            "localpath": "/mnt/store/signal_archive_bot",
+            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-signal-proofmode",
+        },
+    }
+}
 
 
 def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, outputPath):
@@ -234,7 +261,7 @@ def telegram_parse_events_into_folders(localPath):
                 )
 
 
-def extract_chat_metadata_from_slack(localPath, folder):
+def parse_chat_metadata_from_slack(localPath, folder):
     meta = {"dateCreated": "", "maxDate": -1, "minDate": -1, "channels": []}
     # Generate channels for slack
     converstaionFileName = os.path.join(localPath, folder, "conversations.json")
@@ -257,7 +284,7 @@ def extract_chat_metadata_from_slack(localPath, folder):
     return meta
 
 
-def extract_chat_metadata_from_telegram(localPath, folder):
+def parse_chat_metadata_from_telegram(localPath, folder):
     meta = {"dateCreated": "", "maxDate": -1, "minDate": -1, "channels": []}
     for archiveName in os.listdir(os.path.join(localPath, folder)):
 
@@ -416,64 +443,39 @@ def process_injestor(key):
                         print(key + " Processing Asset " + item)
 
                         if injestorConfig["type"] == "slack":
-                            meta_chat = extract_chat_metadata_from_slack(
-                                localPath, item
-                            )
+                            meta_chat = parse_chat_metadata_from_slack(localPath, item)
 
                         if injestorConfig["type"] == "telegram":
                             print("telergram processing")
-                            meta_chat = extract_chat_metadata_from_telegram(
+                            meta_chat = parse_chat_metadata_from_telegram(
                                 localPath, item
                             )
 
-                    # Zip up content of directory to a temp file
-                    tmpFileName = os.path.join(
-                        tmpFolder, key + str(folderDateTime.timestamp()) + ".zip"
-                    )
-                    with zipfile.ZipFile(tmpFileName, "w") as archive:
-                        zipFolder(archive, os.path.join(localPath, item))
-
-                    content_meta = generate_metadata_content(
-                        meta_bot_type,
-                        meta_channels,
-                        meta_min_date,
-                        meta_max_date,
-                        injestorConfig,
-                    )
-
-                    # Generate SHA and rename asset
-                    sha256asset = sha256sum(tmpFileName)
-                    assetFileName = os.path.join(tmpFolder, sha256asset + ".zip")
-                    os.rename(tmpFileName, assetFileName)
-
-                    # Generate Bundle
-                    bundleFileName = os.path.join(stagePath, sha256asset + ".zip")
-                    with zipfile.ZipFile(bundleFileName + ".part", "w") as archive:
-                        archive.write(assetFileName, os.path.basename(assetFileName))
-                        archive.writestr(
-                            sha256asset + "-meta-content.json", json.dumps(content_meta)
+                        # Zip up content of directory to a temp file
+                        tmpFileName = os.path.join(
+                            tmpFolder, key + str(folderDateTime.timestamp()) + ".zip"
                         )
-                        archive.writestr(
-                            sha256asset + "-meta-recorder.json",
-                            json.dumps(recorder_meta),
+                        with zipfile.ZipFile(tmpFileName, "w") as archive:
+                            zipFolder(archive, os.path.join(localPath, item))
+
+                        content_meta = generate_metadata_content(
+                            meta_chat,
+                            injestorConfig,
                         )
 
-                    sha256zip = sha256sum(
-                        os.path.join(stagePath, sha256asset + ".zip.part")
-                    )
-                    # Rename file for watcher
-                    os.rename(
-                        bundleFileName + ".part",
-                        os.path.join(outputPath, sha256zip + ".zip"),
-                    )
-                    # Delete tmp file
-                    os.remove(assetFileName)
+                        add_to_pipeline(
+                            tmpFileName,
+                            content_meta,
+                            recorder_meta,
+                            stagePath,
+                            outputPath,
+                        )
 
-                    # Rename folder to prevent re-processing
-                    os.rename(
-                        os.path.join(localPath, item),
-                        os.path.join(localPath, "P-" + item),
-                    )
+                        # Rename folder to prevent re-processing
+                        os.rename(
+                            os.path.join(localPath, item),
+                            os.path.join(localPath, "P-" + item),
+                        )
 
 
 while True:
