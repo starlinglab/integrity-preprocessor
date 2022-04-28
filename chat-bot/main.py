@@ -9,54 +9,25 @@ import tempfile
 from zipfile import ZipFile
 import io
 import csv
+import dotenv
 
 # Kludge
 import sys
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../common")
 import common
-config = {
-    "injestors": {
-        "slack_archive_bot_workspace-0": {
-            "type": "slack",
-            "method": "folder",
-            "localpath": "/mnt/store/slack_archive_bot_workspace-0",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-slack",
-            "workspace": "test-environment",
-            "botAccount": "Name of bot",
-        },
-        "telegram_archive_bot_testbot1": {
-            "type": "telegram",
-            "method": "folder",
-            "localpath": "/mnt/store/telegram_archive_bot_testbot1/archive",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-telegram",
-            "botAccount": "bot name here",
-        },
-        "signal_bot_testbot1": {
-            "type": "signal",
-            "method": "file",
-            "processing": "proofmode",
-            "localpath": "/mnt/store/signal_archive_bot",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-signal-proofmode",
-        },
-    }
-}
-default_author = {
-    "@type": "Organization",
-    "identifier": "https://starlinglab.org",
-    "name": "Starling Lab",
-}
 
-default_content = {
-    "name": "Chat bot archive",
-    "mine": "application/zip",
-    "description": "Archive collected by chat bot",
-    "author": default_author,
-    "dateCreated": "",
-    "extras": {},
-    "private": {},
-    "timestamp": {},
-}
+
+dotenv.load_dotenv()
+
+CONFIG_FILE = os.environ.get("CONFIG_FILE")
+
+with open(CONFIG_FILE) as f:
+    config = json.load(f)
+
+
+default_content = config["content"]
+default_author = default_content["author"]
 
 
 def start_metadata_content(injestor):
@@ -445,11 +416,15 @@ def process_injestor(key):
                         print(key + " Processing Asset " + item)
 
                         if injestorConfig["type"] == "slack":
-                            meta_chat = extract_chat_metadata_from_slack(localPath, item)
+                            meta_chat = extract_chat_metadata_from_slack(
+                                localPath, item
+                            )
 
                         if injestorConfig["type"] == "telegram":
                             print("telergram processing")
-                            meta_chat = extract_chat_metadata_from_telegram(localPath, item)
+                            meta_chat = extract_chat_metadata_from_telegram(
+                                localPath, item
+                            )
 
                     # Zip up content of directory to a temp file
                     tmpFileName = os.path.join(
