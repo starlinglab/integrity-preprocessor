@@ -25,7 +25,7 @@
     },
     "content": {
         "name": "Chat bot archive",
-        "mine": "application/zip",
+        "mime": "application/zip",
         "description": "Archive collected by chat bot",
         "author": {
             "@type": "Organization",
