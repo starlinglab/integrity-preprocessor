@@ -169,13 +169,16 @@ def generate_metadata_content(
     meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created
 ):
 
-    extras = {}
+    
+    extras = deepcopy(meta_extra)
+    if "extras" in meta_additional:
+        extras.update(meta_additional["extras"])
     private = {}
+    if "private" in meta_additional:
+        extras.update(meta_additional["private"])
+
     private["crawlConfigs"] = meta_crawl_config
     private["crawlData"] = meta_crawl_data
-    private["additionalData"] = meta_additional
-
-    extras = deepcopy(meta_extra)
 
     meta_content = deepcopy(default_content)
 
