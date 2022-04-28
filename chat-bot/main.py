@@ -13,33 +13,34 @@ import csv
 # Kludge
 import sys
 
-sys.path.append(
-    os.path.dirname(os.path.realpath(__file__)) + "/../integrity_recorder_id"
-)
-import integrity_recorder_id
-
-metdata_file_timestamp = 0
-
-
-def getRecorderMeta(type):
-    global metdata_file_timestamp, recorder_meta_all
-
-    current_metadata_file_timestamp = os.path.getmtime(
-        integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH
-    )
-
-    if current_metadata_file_timestamp > metdata_file_timestamp:
-
-        if os.path.exists(integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH):
-            with open(
-                integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH, "r"
-            ) as f:
-                recorder_meta_all = json.load(f)
-                print("Recorder Metadata Change Detected")
-                metdata_file_timestamp = current_metadata_file_timestamp
-    return recorder_meta_all
-
-
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../common")
+import common
+config = {
+    "injestors": {
+        "slack_archive_bot_workspace-0": {
+            "type": "slack",
+            "method": "folder",
+            "localpath": "/mnt/store/slack_archive_bot_workspace-0",
+            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-slack",
+            "workspace": "test-environment",
+            "botAccount": "Name of bot",
+        },
+        "telegram_archive_bot_testbot1": {
+            "type": "telegram",
+            "method": "folder",
+            "localpath": "/mnt/store/telegram_archive_bot_testbot1/archive",
+            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-telegram",
+            "botAccount": "bot name here",
+        },
+        "signal_bot_testbot1": {
+            "type": "signal",
+            "method": "file",
+            "processing": "proofmode",
+            "localpath": "/mnt/store/signal_archive_bot",
+            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-signal-proofmode",
+        },
+    }
+}
 default_author = {
     "@type": "Organization",
     "identifier": "https://starlinglab.org",
@@ -213,98 +214,6 @@ def zipFolder(zipfile, path):
 
 
 tmpFolder = "/tmp"
-config = {
-    "injestors": {
-        "slack_archive_bot_workspace-0": {
-            "type": "slack",
-            "method": "folder",
-            "localpath": "/mnt/store/slack_archive_bot_workspace-0",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-slack",
-            "workspace": "test-environment",
-            "botAccount": "Name of bot",
-        },
-        "telegram_archive_bot_testbot1": {
-            "type": "telegram",
-            "method": "folder",
-            "localpath": "/mnt/store/telegram_archive_bot_testbot1/archive",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-telegram",
-            "botAccount": "bot name here",
-        },
-        "signal_bot_testbot1": {
-            "type": "signal",
-            "method": "file",
-            "processing": "proofmode",
-            "localpath": "/mnt/store/signal_archive_bot",
-            "targetpath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-bot-archive-signal-proofmode",
-        },
-    }
-}
-
-## Proof mode processing
-def parse_proofmode_data(proofmode_path):
-    data = ""
-    filename = ""
-    result = {}
-    # ProofMode metadata extraction
-    with ZipFile(proofmode_path, "r") as proofmode:
-
-        for file in proofmode.namelist():
-            if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
-                data = proofmode.read(file).decode("utf-8")
-                filename = file
-                data_split = data.split("\n")
-                current_line = 0
-                res = []
-                brokenline = 0
-                for line in data_split:
-                    # Add to arary if its the next line
-                    if len(res) <= current_line:
-                        res.append("")
-                    # Skip over is it is an empty line
-                    if len(line.strip()) < 4:
-                        current_line = current_line - 1
-                    # poorly parsed line here, bring it up one level
-                    elif len(line) < 78:
-                        current_line = current_line - 1
-                        brokenline = 1
-                    # this is the next line after the broken lines, so still broken
-                    elif brokenline == 1:
-                        current_line = current_line - 1
-                        brokenline = 0
-
-                    # Add line to current line (moving broken lines up)
-                    res[current_line] = res[current_line] + line.strip()
-                    current_line = current_line + 1
-
-                heading = None
-
-                with io.StringIO("\n".join(res), newline="\n") as csvfile:
-                    csv_reader = csv.reader(
-                        csvfile,
-                        delimiter=",",
-                    )
-                    json_metadata_template = {}
-                    json_metadata = {}
-                    for row in csv_reader:
-                        # Read Heading
-                        if heading == None:
-                            column_index = 0
-                            for col_name in row:
-                                json_metadata_template[col_name] = ""
-                                column_index += 1
-                            heading = row
-
-                        else:
-                            if json_metadata == None:
-                                json_metadata = copy.deepcopy(json_metadata_template)
-                            column_index = 0
-                            for item in row:
-                                if item.strip() != "":
-                                    json_metadata[heading[column_index]] = item
-                                column_index += 1
-                    source_filename = os.path.basename(json_metadata["File Path"])
-                    result[source_filename] = json_metadata
-    return result
 
 
 def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, outputPath):
@@ -331,7 +240,96 @@ def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, outputP
     )
 
 
-def processInjestor(key):
+# Parses and groups event files created by telegram both into
+# folders representing Y-M-D-Hr format
+def telegram_parse_events_into_folders(localPath):
+    # Create Date/Time Diretory Structure and move files into it
+    for item in os.listdir(localPath):
+        if os.path.isfile(os.path.join(localPath, item)):
+            fileTimeStamp = os.path.splitext(item)[0]
+            fileDateTime = datetime.datetime.fromtimestamp(int(fileTimeStamp))
+            currentDateTime = datetime.datetime.utcnow()
+            fileTimeDelta = (
+                currentDateTime - (fileDateTime + datetime.timedelta(minutes=1))
+            ).total_seconds()
+            if fileTimeDelta > 0:
+                currentFolderDate = datetime.datetime.utcnow().strftime("%Y-%m-%d-%H")
+                dir = os.path.join(localPath, currentFolderDate)
+                if not os.path.isdir(dir):
+                    os.mkdir(dir, 0o660)
+                os.rename(
+                    os.path.join(localPath, item),
+                    os.path.join(localPath, currentFolderDate, item),
+                )
+
+
+def extract_chat_metadata_from_slack(localPath, folder):
+    meta = {"dateCreated": "", "maxDate": -1, "minDate": -1, "channels": []}
+    # Generate channels for slack
+    converstaionFileName = os.path.join(localPath, folder, "conversations.json")
+    with open(converstaionFileName) as f:
+        channelData = json.load(f)
+        for chan in channelData:
+            if channelData[chan]["is_member"] == True:
+                meta["channels"].append(channelData[chan]["name"])
+
+    # Generate min date/time for slack
+    archive_file_name = os.path.join(localPath, folder, "archive.jsonl")
+    with open(archive_file_name, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            channelData = json.loads(line)
+            if meta["minDate"] == -1 or meta["minDate"] > float(channelData["ts"]):
+                meta["minDate"] = float(channelData["ts"])
+            if meta["maxDate"] < float(channelData["ts"]):
+                meta["maxDate"] = float(channelData["ts"])
+    return meta
+
+
+def extract_chat_metadata_from_telegram(localPath, folder):
+    meta = {"dateCreated": "", "maxDate": -1, "minDate": -1, "channels": []}
+    for archiveName in os.listdir(os.path.join(localPath, folder)):
+
+        # Extract content to temporary folder
+        with tempfile.TemporaryDirectory() as d:
+            archiveZipFilePath = os.path.join(localPath, folder, archiveName)
+            if os.path.splitext(archiveZipFilePath)[1] == ".zip":
+
+                # Extract all files in zip
+                with zipfile.ZipFile(archiveZipFilePath, "r") as archive:
+                    archive.extractall(d)
+
+                # Loop through json files in directory
+                for archiveContentFileName in os.listdir(d):
+
+                    # Process only JSON files
+                    current_full_path = os.path.join(d, archiveContentFileName)
+                    if os.path.splitext(current_full_path)[1] == ".json":
+                        print("Processing " + archiveContentFileName)
+                        with open(
+                            current_full_path,
+                            "r",
+                        ) as archiveContentFileHandle:
+                            channelData = json.load(archiveContentFileHandle)
+                            channelName = (
+                                channelData["message"]["chat"]["type"]
+                                + " - "
+                                + channelData["message"]["chat"]["title"]
+                            )
+                            if (
+                                meta["minDate"] == -1
+                                or meta["minDate"] > channelData["message"]["date"]
+                            ):
+                                meta["minDate"] = channelData["message"]["date"]
+                            if meta["maxDate"] < channelData["message"]["date"]:
+                                meta["maxDate"] = channelData["message"]["date"]
+
+                            if channelName not in meta["channels"]:
+                                meta["channels"].append(channelName)
+    return meta
+
+
+def process_injestor(key):
     injestorConfig = config["injestors"][key]
 
     stagePath = os.path.join(injestorConfig["targetpath"], "tmp")
@@ -356,34 +354,15 @@ def processInjestor(key):
 
     if injestorConfig["type"] == "telegram":
         localPath = injestorConfig["localpath"]
-        # Create Date/Time Diretory Structure and move files into it
-        for item in os.listdir(localPath):
-            if os.path.isfile(os.path.join(localPath, item)):
-                fileTimeStamp = os.path.splitext(item)[0]
-                fileDateTime = datetime.datetime.fromtimestamp(int(fileTimeStamp))
-                currentDateTime = datetime.datetime.utcnow()
-                fileTimeDelta = (
-                    currentDateTime - (fileDateTime + datetime.timedelta(minutes=1))
-                ).total_seconds()
-                if fileTimeDelta > 0:
-                    currentFolderDate = datetime.datetime.utcnow().strftime(
-                        "%Y-%m-%d-%H"
-                    )
-                    dir = os.path.join(localPath, currentFolderDate)
-                    if not os.path.isdir(dir):
-                        os.mkdir(dir, 0o660)
-                    os.rename(
-                        os.path.join(localPath, item),
-                        os.path.join(localPath, currentFolderDate, item),
-                    )
-        recorder_meta = getRecorderMeta("telegram_bot")
+        telegram_parse_events_into_folders(localPath)
+        recorder_meta = common.get_recorder_meta("telegram_bot")
 
     if injestorConfig["type"] == "slack":
-        recorder_meta = getRecorderMeta("slack_bot")
+        recorder_meta = common.get_recorder_meta("slack_bot")
         meta_channels = []
 
     if injestorConfig["type"] == "signal":
-        recorder_meta = getRecorderMeta("signal_bot")
+        recorder_meta = common.get_recorder_meta("signal_bot")
 
     # Process file mode
     if injestorConfig["method"] == "file":
@@ -393,18 +372,23 @@ def processInjestor(key):
                 filesplit = os.path.splitext(item)
                 filename = filesplit[0]
                 fileext = filesplit[1]
+
+                # Only look for zip files
                 if fileext == ".zip":
                     with open(localPath + "/" + filename + ".json", "r") as f:
                         signal_metadata = json.load(f)
                         content_meta["private"]["signal"] = signal_metadata
 
+                    # additional specific processing
                     if "processing" in injestorConfig:
                         if injestorConfig["processing"] == "proofmode":
                             content_meta["name"] = ("Authenticated image",)
                             content_meta["description"] = (
                                 "Image with ProofMode metadata received via Signal",
                             )
-                            content_meta["private"]["proofmode"] = parse_proofmode_data(
+                            content_meta["private"][
+                                "proofmode"
+                            ] = common.parse_proofmode_data(
                                 localPath + "/" + filename + ".zip"
                             )
 
@@ -461,114 +445,11 @@ def processInjestor(key):
                         print(key + " Processing Asset " + item)
 
                         if injestorConfig["type"] == "slack":
-
-                            converstaionFileName = os.path.join(
-                                localPath, item, "conversations.json"
-                            )
-                            with open(converstaionFileName) as f:
-                                channelData = json.load(f)
-                                for chan in channelData:
-                                    if channelData[chan]["is_member"] == True:
-                                        meta_channels.append(channelData[chan]["name"])
-                            archive_file_name = os.path.join(
-                                localPath, item, "archive.jsonl"
-                            )
-                            with open(archive_file_name, "r") as f:
-                                lines = f.readlines()
-                                for line in lines:
-                                    channelData = json.loads(line)
-                                    if meta_min_date == -1 or meta_min_date > float(
-                                        channelData["ts"]
-                                    ):
-                                        meta_min_date = float(channelData["ts"])
-                                    if meta_max_date < float(channelData["ts"]):
-                                        meta_max_date = float(channelData["ts"])
+                            meta_chat = extract_chat_metadata_from_slack(localPath, item)
 
                         if injestorConfig["type"] == "telegram":
                             print("telergram processing")
-
-                            # Loop through items in archive
-                            for archiveName in os.listdir(
-                                os.path.join(localPath, item)
-                            ):
-
-                                # Extract content to temporary folder
-                                with tempfile.TemporaryDirectory() as d:
-                                    archiveZipFilePath = os.path.join(
-                                        localPath, item, archiveName
-                                    )
-                                    if (
-                                        os.path.splitext(archiveZipFilePath)[1]
-                                        == ".zip"
-                                    ):
-
-                                        # Extract all files in zip
-                                        with zipfile.ZipFile(
-                                            archiveZipFilePath, "r"
-                                        ) as archive:
-                                            archive.extractall(d)
-
-                                            # Loop through json files in directory
-                                            for archiveContentFileName in os.listdir(d):
-
-                                                # Process only JSON files
-                                                if (
-                                                    os.path.splitext(
-                                                        os.path.join(
-                                                            d, archiveContentFileName
-                                                        )
-                                                    )[1]
-                                                    == ".json"
-                                                ):
-                                                    print(
-                                                        "Processing "
-                                                        + archiveContentFileName
-                                                    )
-                                                    with open(
-                                                        os.path.join(
-                                                            d, archiveContentFileName
-                                                        ),
-                                                        "r",
-                                                    ) as archiveContentFileHandle:
-                                                        channelData = json.load(
-                                                            archiveContentFileHandle
-                                                        )
-                                                        channelName = (
-                                                            channelData["message"][
-                                                                "chat"
-                                                            ]["type"]
-                                                            + " - "
-                                                            + channelData["message"][
-                                                                "chat"
-                                                            ]["title"]
-                                                        )
-                                                        if (
-                                                            meta_min_date == -1
-                                                            or meta_min_date
-                                                            > channelData["message"][
-                                                                "date"
-                                                            ]
-                                                        ):
-                                                            meta_min_date = channelData[
-                                                                "message"
-                                                            ]["date"]
-                                                        if (
-                                                            meta_max_date
-                                                            < channelData["message"][
-                                                                "date"
-                                                            ]
-                                                        ):
-                                                            meta_max_date = channelData[
-                                                                "message"
-                                                            ]["date"]
-
-                                                        if (
-                                                            channelName
-                                                            not in meta_channels
-                                                        ):
-                                                            meta_channels.append(
-                                                                channelName
-                                                            )
+                            meta_chat = extract_chat_metadata_from_telegram(localPath, item)
 
                     # Zip up content of directory to a temp file
                     tmpFileName = os.path.join(
@@ -620,12 +501,9 @@ def processInjestor(key):
                     )
 
 
-# Update IDs
-integrity_recorder_id.build_recorder_id_json()
-
 while True:
     try:
         for key in config["injestors"]:
-            processInjestor(key)
+            process_injestor(key)
     except Exception as inst:
         raise inst
