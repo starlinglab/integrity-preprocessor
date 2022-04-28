@@ -41,6 +41,17 @@ FAIL_DELAY = 10
 # Crawl that finished X seconds before the last check is checked again, just in case
 LAST_CHECK_WINDOW = 30
 
+
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logging.info("Started browsertrix preprocessor")
+
+
+
 # Load config
 config_data = {}
 if os.path.exists(CONFIG_FILE):
@@ -283,15 +294,6 @@ def headers():
 def write_data(d):
     with open(DATA_JSON_PATH, "w") as f:
         json.dump(d, f)
-
-
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logging.info("Started browsertrix preprocessor")
 
 
 def update_crawl_config(cid, aid, data):
