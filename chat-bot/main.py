@@ -239,11 +239,12 @@ def parse_chat_metadata_from_slack(localPath, folder):
     meta = {"dateCreated": "", "maxDate": -1, "minDate": -1, "channels": []}
     # Generate channels for slack
     converstaionFileName = os.path.join(localPath, folder, "conversations.json")
-    with open(converstaionFileName) as f:
-        channelData = json.load(f)
-        for chan in channelData:
-            if channelData[chan]["is_member"] == True:
-                meta["channels"].append(channelData[chan]["name"])
+    if os.path.exists(converstaionFileName):
+        with open(converstaionFileName) as f:
+            channelData = json.load(f)
+            for chan in channelData:
+                if "is_member" in channelData[chan] and channelData[chan]["is_member"] == True:
+                    meta["channels"].append(channelData[chan]["name"])
 
     # Generate min date/time for slack
     archive_file_name = os.path.join(localPath, folder, "archive.jsonl")
