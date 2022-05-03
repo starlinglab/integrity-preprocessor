@@ -52,7 +52,6 @@ def parse_proofmode_data(proofmode_path):
                 data = proofmode.read(file).decode("utf-8")
                 
                 pgp = proofmode.read(base_file_name + ".asc").decode("utf-8")
-                print(data.split("\n"))
                 filename = file
 
                 heading = None
