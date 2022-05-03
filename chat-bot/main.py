@@ -346,9 +346,9 @@ def process_injestor(key):
     # Process file mode
     if injestorConfig["method"] == "file":
         localPath = injestorConfig["localpath"]
-        for item in os.listdir(localPath):
-            print(f"FileMode - parsing {item}")
+        for item in os.listdir(localPath):            
             if os.path.isfile(os.path.join(localPath, item)):
+                print(f"FileMode - parsing {item}")
                 filesplit = os.path.splitext(item)
                 filename = filesplit[0]
                 fileext = filesplit[1]
