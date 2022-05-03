@@ -61,7 +61,8 @@ def parse_proofmode_data(proofmode_path):
                 csv_reader = csv.reader(
                     data.splitlines(),
                     delimiter=","
-                )                    
+                )             
+                json_metadata_template = {}       
                 json_metadata = { "proofs": [] }
                 for row in csv_reader:
                     json_metadata_row = {}
@@ -75,7 +76,7 @@ def parse_proofmode_data(proofmode_path):
 
                     else:
                         if json_metadata == None:
-                            json_metadata = {}
+                            json_metadata = copy.deepcopy(json_metadata_template)
                         column_index = 0
                         for item in row:
                             if item.strip() != "":
