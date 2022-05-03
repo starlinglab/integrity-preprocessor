@@ -34,7 +34,6 @@ def get_recorder_meta(type):
                 metdata_file_timestamp = current_metadata_file_timestamp
     return recorder_meta_all
 
-
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
     data = ""
@@ -43,60 +42,50 @@ def parse_proofmode_data(proofmode_path):
     # ProofMode metadata extraction
     with ZipFile(proofmode_path, "r") as proofmode:
 
+        public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
         for file in proofmode.namelist():
             if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
-                data = proofmode.read(file).decode("utf-8")
-                filename = file
-                data_split = data.split("\n")
-                current_line = 0
-                res = []
-                brokenline = 0
-                for line in data_split:
-                    # Add to arary if its the next line
-                    if len(res) <= current_line:
-                        res.append("")
-                    # Skip over is it is an empty line
-                    if len(line.strip()) < 4:
-                        current_line = current_line - 1
-                    # poorly parsed line here, bring it up one level
-                    elif len(line) < 78:
-                        current_line = current_line - 1
-                        brokenline = 1
-                    # this is the next line after the broken lines, so still broken
-                    elif brokenline == 1:
-                        current_line = current_line - 1
-                        brokenline = 0
 
-                    # Add line to current line (moving broken lines up)
-                    res[current_line] = res[current_line] + line.strip()
-                    current_line = current_line + 1
+                base_file_name = os.path.splitext(file)[0]
+                base_file_name = os.path.splitext(base_file_name)[0]                
+
+                data = proofmode.read(file).decode("utf-8")
+                
+                pgp = proofmode.read(base_file_name + ".asc").decode("utf-8")
+                print(data.split("\n"))
+                filename = file
 
                 heading = None
+          
+                
+                csv_reader = csv.reader(
+                    data.splitlines(),
+                    delimiter=","
+                )                    
+                json_metadata = { "proofs": [] }
+                for row in csv_reader:
+                    json_metadata_row = {}
+                    # Read Heading
+                    if heading == None:
+                        column_index = 0
+                        for col_name in row:
+                            json_metadata_template[col_name] = ""
+                            column_index += 1
+                        heading = row
 
-                with io.StringIO("\n".join(res), newline="\n") as csvfile:
-                    csv_reader = csv.reader(
-                        csvfile,
-                        delimiter=",",
-                    )
-                    json_metadata_template = {}
-                    json_metadata = {}
-                    for row in csv_reader:
-                        # Read Heading
-                        if heading == None:
-                            column_index = 0
-                            for col_name in row:
-                                json_metadata_template[col_name] = ""
-                                column_index += 1
-                            heading = row
-
-                        else:
-                            if json_metadata == None:
-                                json_metadata = copy.deepcopy(json_metadata_template)
-                            column_index = 0
-                            for item in row:
-                                if item.strip() != "":
-                                    json_metadata[heading[column_index]] = item
-                                column_index += 1
-                    source_filename = os.path.basename(json_metadata["File Path"])
-                    result[source_filename] = json_metadata
+                    else:
+                        if json_metadata == None:
+                            json_metadata = {}
+                        column_index = 0
+                        for item in row:
+                            if item.strip() != "":
+                                json_metadata_row[heading[column_index]] = item
+                            column_index += 1
+                        json_metadata["proofs"].append(json_metadata_row)
+                
+                json_metadata["pgpSignature"] = pgp
+                json_metadata["pgpPublicKey"] = public_pgp
+                json_metadata['sha256hash'] = json_metadata["proofs"][0]["File Hash SHA256"]
+                source_filename = os.path.basename(json_metadata["proofs"][0]["File Path"])
+                result[source_filename] = json_metadata
     return result

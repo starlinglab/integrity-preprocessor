@@ -46,12 +46,13 @@ def start_metadata_content(injestor):
     if bot_type == "telegram":
         meta_content["private"]["telegram"] = {}
         meta_content["private"]["telegram"]["botAccount"] = injestor["botAccount"]
-
+    meta_content["extras"]['botType'] = bot_type
     return meta_content
 
 
 def genreate_folder_metadata(meta_content, meta_channels, meta_min_date, meta_max_date):
 
+    bot_type = meta_content["extras"]['botType']
     # Calculate dates
     min_date = ""
     max_date = ""
@@ -307,11 +308,9 @@ def parse_chat_metadata_from_telegram(localPath, folder):
 def process_injestor(key):
     injestorConfig = config["injestors"][key]
     userConfig = {}
-    if "userConfig" in injestorConfig:
-        
+    if "userConfig" in injestorConfig:        
         with open(injestorConfig["userConfig"]) as f:
             userConfig = json.load(f)
-
     stagePath = os.path.join(injestorConfig["targetpath"], "tmp")
     outputPath = os.path.join(injestorConfig["targetpath"], "input")
 
@@ -361,14 +360,21 @@ def process_injestor(key):
                         content_meta["private"]["signal"] = signal_metadata
 
                     # additional specific processing
+                    print("Matching " + content_meta["private"]["signal"]['source'] )
                     if content_meta["private"]["signal"]['source'] in userConfig:
+                        print("matched")                        
                         user=userConfig[content_meta["private"]["signal"]['source']]
                         content_meta["private"]["signal"]["sourceName"]=user['name']
 
                         if "author" in user:
                             content_meta['author'] = user['author']
+                        else:
+                            author = {
+                                "@type": "Person",
+                                "name": user['name'],
+                            }
+                            content_meta['author'] = author
                         
-
                         ## TODO org and collection
 
 
