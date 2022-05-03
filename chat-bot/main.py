@@ -209,6 +209,7 @@ def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, outputP
         bundleFileName + ".part",
         os.path.join(outputPath, sha256zip + ".zip"),
     )
+    return os.path.join(outputPath, sha256zip + ".zip")
 
 
 # Parses and groups event files created by telegram both into
@@ -348,13 +349,13 @@ def process_injestor(key):
         localPath = injestorConfig["localpath"]
         for item in os.listdir(localPath):            
             if os.path.isfile(os.path.join(localPath, item)):
-                print(f"FileMode - parsing {item}")
                 filesplit = os.path.splitext(item)
                 filename = filesplit[0]
                 fileext = filesplit[1]
 
                 # Only look for zip files
                 if fileext == ".zip":
+                    print(f"FileMode - parsing {item}")
                     with open(localPath + "/" + filename + ".json", "r") as f:
                         signal_metadata = json.load(f)
                         content_meta["private"]["signal"] = signal_metadata
@@ -384,13 +385,14 @@ def process_injestor(key):
                                 localPath + "/" + filename + ".zip"
                             )
 
-                    add_to_pipeline(
+                    out_file = add_to_pipeline(
                         localPath + "/" + filename + ".zip",
                         content_meta,
                         recorder_meta,
                         stagePath,
                         outputPath,
                     )
+                    print(f"FileMode - parsing {item} - wrote file {out_file}")                    
                     archived = localPath + "/archived"
                     # Move to archived folder
                     if not os.path.isdir(archived):
