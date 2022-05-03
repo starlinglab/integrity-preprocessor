@@ -25,7 +25,6 @@ CONFIG_FILE = os.environ.get("CONFIG_FILE")
 with open(CONFIG_FILE) as f:
     config = json.load(f)
 
-
 default_content = config["content"]
 default_author = default_content["author"]
 
@@ -261,6 +260,7 @@ def parse_chat_metadata_from_slack(localPath, folder):
 
 
 def parse_chat_metadata_from_telegram(localPath, folder):
+    print(f"Telegram - Pasing {folder}")
     meta = {"dateCreated": "", "maxDate": -1, "minDate": -1, "channels": []}
     for archiveName in os.listdir(os.path.join(localPath, folder)):
 
@@ -305,6 +305,11 @@ def parse_chat_metadata_from_telegram(localPath, folder):
 
 def process_injestor(key):
     injestorConfig = config["injestors"][key]
+    userConfig = {}
+    if "userConfig" in injestorConfig:
+        
+        with open(injestorConfig["userConfig"]) as f:
+            userConfig = json.load(f)
 
     stagePath = os.path.join(injestorConfig["targetpath"], "tmp")
     outputPath = os.path.join(injestorConfig["targetpath"], "input")
@@ -336,12 +341,13 @@ def process_injestor(key):
         meta_channels = []
 
     if injestorConfig["type"] == "signal":
-        recorder_meta = common.get_recorder_meta("signal_bot")
+        recorder_meta = common.get_recorder_meta("signal_bot")        
 
     # Process file mode
     if injestorConfig["method"] == "file":
         localPath = injestorConfig["localpath"]
         for item in os.listdir(localPath):
+            print(f"FileMode - parsing {item}")
             if os.path.isfile(os.path.join(localPath, item)):
                 filesplit = os.path.splitext(item)
                 filename = filesplit[0]
@@ -354,7 +360,19 @@ def process_injestor(key):
                         content_meta["private"]["signal"] = signal_metadata
 
                     # additional specific processing
+                    if content_meta["private"]["signal"]['source'] in userConfig:
+                        user=userConfig[content_meta["private"]["signal"]['source']]
+                        content_meta["private"]["signal"]["sourceName"]=user['name']
+
+                        if "author" in user:
+                            content_meta['author'] = user['author']
+                        
+
+                        ## TODO org and collection
+
+
                     if "processing" in injestorConfig:
+                        print(f"FileMode - parsing {item} - processing Proofmode")
                         if injestorConfig["processing"] == "proofmode":
                             content_meta["name"] = ("Authenticated image",)
                             content_meta["description"] = (
@@ -385,6 +403,7 @@ def process_injestor(key):
                         localPath + "/" + filename + ".json",
                         archived + "/" + filename + ".json",
                     )
+                    print(f"FileMode - parsing {item} - Moved to Archive")
 
     # Process folder mode
     if injestorConfig["method"] == "folder":
