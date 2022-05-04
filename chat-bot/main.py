@@ -46,13 +46,13 @@ def start_metadata_content(injestor):
     if bot_type == "telegram":
         meta_content["private"]["telegram"] = {}
         meta_content["private"]["telegram"]["botAccount"] = injestor["botAccount"]
-    meta_content["extras"]['botType'] = bot_type
+    meta_content["extras"]["botType"] = bot_type
     return meta_content
 
 
 def genreate_folder_metadata(meta_content, meta_channels, meta_min_date, meta_max_date):
 
-    bot_type = meta_content["extras"]['botType']
+    bot_type = meta_content["extras"]["botType"]
     # Calculate dates
     min_date = ""
     max_date = ""
@@ -244,7 +244,10 @@ def parse_chat_metadata_from_slack(localPath, folder):
         with open(converstaionFileName) as f:
             channelData = json.load(f)
             for chan in channelData:
-                if "is_member" in channelData[chan] and channelData[chan]["is_member"] == True:
+                if (
+                    "is_member" in channelData[chan]
+                    and channelData[chan]["is_member"] == True
+                ):
                     meta["channels"].append(channelData[chan]["name"])
 
     # Generate min date/time for slack
@@ -310,7 +313,7 @@ def parse_chat_metadata_from_telegram(localPath, folder):
 def process_injestor(key):
     injestorConfig = config["injestors"][key]
     userConfig = {}
-    if "userConfig" in injestorConfig:        
+    if "userConfig" in injestorConfig:
         with open(injestorConfig["userConfig"]) as f:
             userConfig = json.load(f)
     stagePath = os.path.join(injestorConfig["targetpath"], "tmp")
@@ -343,16 +346,21 @@ def process_injestor(key):
         meta_channels = []
 
     if injestorConfig["type"] == "signal":
-        recorder_meta = common.get_recorder_meta("signal_bot")        
+        recorder_meta = common.get_recorder_meta("signal_bot")
 
     # Process file mode
     if injestorConfig["method"] == "file":
         localPath = injestorConfig["localpath"]
-        for item in os.listdir(localPath):            
+        for item in os.listdir(localPath):
             if os.path.isfile(os.path.join(localPath, item)):
                 filesplit = os.path.splitext(item)
                 filename = filesplit[0]
                 fileext = filesplit[1]
+
+                # set datCreate to file date/time
+                content_meta["dateCreated"] = (
+                    os.path.getmtime(os.path.join(localPath, item)).utcnow().isoformat() + "Z"
+                )
 
                 # Only look for zip files
                 if fileext == ".zip":
@@ -362,28 +370,30 @@ def process_injestor(key):
                         content_meta["private"]["signal"] = signal_metadata
 
                     # additional specific processing
-                    print("Matching " + content_meta["private"]["signal"]['source'] )
-                    if content_meta["private"]["signal"]['source'] in userConfig:
-                        print("matched")                        
-                        user=userConfig[content_meta["private"]["signal"]['source']]
-                        content_meta["private"]["signal"]["sourceName"]=user['name']
+                    print(
+                        f"FileMode - parsing {item} - Matching "
+                        + content_meta["private"]["signal"]["source"]
+                    )
+                    if content_meta["private"]["signal"]["source"] in userConfig:
+                        user = userConfig[content_meta["private"]["signal"]["source"]]
+                        content_meta["private"]["signal"]["sourceName"] = user["name"]
+                        print(f"FileMode - parsing {item} - Matched " + user["name"])
 
                         if "author" in user:
-                            content_meta['author'] = user['author']
+                            content_meta["author"] = user["author"]
                         else:
                             author = {
                                 "@type": "Person",
-                                "name": user['name'],
+                                "name": user["name"],
                             }
-                            content_meta['author'] = author
-                        
-                        ## TODO org and collection
+                            content_meta["author"] = author
 
+                        ## TODO org and collection
 
                     if "processing" in injestorConfig:
                         print(f"FileMode - parsing {item} - processing Proofmode")
                         if injestorConfig["processing"] == "proofmode":
-                            content_meta["name"] = ("Authenticated image",)
+                            content_meta["name"] = "Authenticated image"
                             content_meta["description"] = (
                                 "Image with ProofMode metadata received via Signal",
                             )
@@ -398,9 +408,9 @@ def process_injestor(key):
                         content_meta,
                         recorder_meta,
                         stagePath,
-                        outputPath,
+                        outputPath
                     )
-                    print(f"FileMode - parsing {item} - wrote file {out_file}")                    
+                    print(f"FileMode - parsing {item} - wrote file {out_file}")
                     archived = localPath + "/archived"
                     # Move to archived folder
                     if not os.path.isdir(archived):
@@ -445,19 +455,20 @@ def process_injestor(key):
                     # Folder time has passed, process
                     if folderTimeDelta > 0:
 
-                        print(key + " Processing Asset " + item)
-
+                        print(f"FolderMode - parsing {item} ({key})")
                         if injestorConfig["type"] == "slack":
+                            print(f"FolderMode - parsing {item} - slack")
                             meta_chat = parse_chat_metadata_from_slack(localPath, item)
 
                         if injestorConfig["type"] == "telegram":
-                            print("telergram processing")
+                            print(f"FolderMode - parsing {item} - telegram")
                             meta_chat = parse_chat_metadata_from_telegram(
                                 localPath, item
                             )
 
                         # No data to deal with, skip folder
-                        if meta_chat is None: 
+                        if meta_chat is None:
+                            print(f"FolderMode - skipping {item} - meta_chat empty")
                             os.rename(
                                 os.path.join(localPath, item),
                                 os.path.join(localPath, "S-" + item),
@@ -483,6 +494,7 @@ def process_injestor(key):
                             stagePath,
                             outputPath,
                         )
+                        print(f"FolderMode - parsing {item} - wrote file {out_file}")
 
                         # Rename folder to prevent re-processing
                         os.rename(
