@@ -358,9 +358,8 @@ def process_injestor(key):
                 fileext = filesplit[1]
 
                 # set datCreate to file date/time
-                content_meta["dateCreated"] = (
-                    os.path.getmtime(os.path.join(localPath, item)).utcnow().isoformat() + "Z"
-                )
+                date_file_created = os.path.getmtime(os.path.join(localPath, item))
+                content_meta["dateCreated"] = datetime.datetime.fromtimestamp(date_file_created).utcnow().isoformat() + "Z"            
 
                 # Only look for zip files
                 if fileext == ".zip":

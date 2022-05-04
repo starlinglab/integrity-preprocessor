@@ -5,6 +5,7 @@ import json
 import csv
 from zipfile import ZipFile
 import io
+import datetime
 
 sys.path.append(
     os.path.dirname(os.path.realpath(__file__)) + "/../integrity_recorder_id"
@@ -48,7 +49,9 @@ def parse_proofmode_data(proofmode_path):
 
         for file in proofmode.namelist():            
             if dateCreate is None:
-                ZipFile.getinfo(file).date_time.utcnow().isoformat() + "Z"
+                x=proofmode.getinfo(file).date_time
+                date_time=datetime.datetime(x[0],x[1],x[2],x[3],x[4],x[5],0)
+                dateCreate = date_time.utcnow().isoformat() + "Z"
 
             if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
 
