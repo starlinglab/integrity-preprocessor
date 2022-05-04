@@ -258,6 +258,8 @@ def parse_chat_metadata_from_slack(localPath, folder):
                     meta["minDate"] = float(channelData["ts"])
                 if meta["maxDate"] < float(channelData["ts"]):
                     meta["maxDate"] = float(channelData["ts"])
+    else:
+        return None
     return meta
 
 
@@ -423,7 +425,7 @@ def process_injestor(key):
 
                 # Check if already processed and define datetime value of directory
                 dirParts = item.split("-")
-                if dirParts[0] != "P":
+                if dirParts[0] != "P" and dirParts[0] != "S":
                     # Calculate date/time for the folder
                     if len(dirParts) == 3:
                         folderDateTime = datetime.datetime.strptime(
@@ -453,6 +455,14 @@ def process_injestor(key):
                             meta_chat = parse_chat_metadata_from_telegram(
                                 localPath, item
                             )
+
+                        # No data to deal with, skip folder
+                        if meta_chat is None: 
+                            os.rename(
+                                os.path.join(localPath, item),
+                                os.path.join(localPath, "S-" + item),
+                            )
+                            continue
 
                         # Zip up content of directory to a temp file
                         tmpFileName = os.path.join(
