@@ -188,7 +188,7 @@ def zipFolder(zipfile, path):
 tmpFolder = "/tmp"
 
 
-def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, outputPath):
+def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, output_path):
 
     # Generate SHA and rename asset
     sha256asset = sha256sum(source_file)
@@ -208,9 +208,9 @@ def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, outputP
     # Rename file for watcher
     os.rename(
         bundleFileName + ".part",
-        os.path.join(outputPath, sha256zip + ".zip"),
+        os.path.join(output_path, sha256zip + ".zip"),
     )
-    return os.path.join(outputPath, sha256zip + ".zip")
+    return os.path.join(output_path, sha256zip + ".zip")
 
 
 # Parses and groups event files created by telegram both into
@@ -312,12 +312,13 @@ def parse_chat_metadata_from_telegram(localPath, folder):
 
 def process_injestor(key):
     injestorConfig = config["injestors"][key]
-    userConfig = {}
+    user_config = {}
     if "userConfig" in injestorConfig:
         with open(injestorConfig["userConfig"]) as f:
-            userConfig = json.load(f)
+            user_config = json.load(f)
     stagePath = os.path.join(injestorConfig["targetpath"], "tmp")
-    outputPath = os.path.join(injestorConfig["targetpath"], "input")
+    output_path_default = os.path.join(injestorConfig["targetpath"], "input")
+    output_path = output_path_default
 
     if not os.path.exists(stagePath):
         os.makedirs(stagePath)
@@ -373,9 +374,10 @@ def process_injestor(key):
                         f"FileMode - parsing {item} - Matching "
                         + content_meta["private"]["signal"]["source"]
                     )
-                    if content_meta["private"]["signal"]["source"] in userConfig:
-                        user = userConfig[content_meta["private"]["signal"]["source"]]
+                    if content_meta["private"]["signal"]["source"] in user_config:
+                        user = user_config[content_meta["private"]["signal"]["source"]]
                         content_meta["private"]["signal"]["sourceName"] = user["name"]
+                        output_path=user["targetpath"]
                         print(f"FileMode - parsing {item} - Matched " + user["name"])
 
                         if "author" in user:
@@ -407,7 +409,7 @@ def process_injestor(key):
                         content_meta,
                         recorder_meta,
                         stagePath,
-                        outputPath
+                        output_path
                     )
                     print(f"FileMode - parsing {item} - wrote file {out_file}")
                     archived = localPath + "/archived"
@@ -491,7 +493,7 @@ def process_injestor(key):
                             content_meta,
                             recorder_meta,
                             stagePath,
-                            outputPath,
+                            output_path,
                         )
                         print(f"FolderMode - parsing {item} - wrote file {out_file}")
 
