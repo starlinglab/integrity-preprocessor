@@ -359,7 +359,7 @@ def process_injestor(key):
 
                 # set datCreate to file date/time
                 date_file_created = os.path.getmtime(os.path.join(localPath, item))
-                content_meta["dateCreated"] = datetime.datetime.fromtimestamp(date_file_created).utcnow().isoformat() + "Z"            
+                content_meta["dateCreated"] = datetime.datetime.fromtimestamp(date_file_created).isoformat() + "Z"
 
                 # Only look for zip files
                 if fileext == ".zip":
@@ -400,6 +400,7 @@ def process_injestor(key):
                             ] = common.parse_proofmode_data(
                                 localPath + "/" + filename + ".zip"
                             )
+                            content_meta["dateCreated"] = content_meta["private"]["proofmode"]['dateCreate']
 
                     out_file = add_to_pipeline(
                         localPath + "/" + filename + ".zip",
