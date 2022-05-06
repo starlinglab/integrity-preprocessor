@@ -26,7 +26,6 @@ with open(CONFIG_FILE) as f:
     config = json.load(f)
 
 default_content = config["content"]
-default_author = default_content["author"]
 
 
 def start_metadata_content(injestor):
@@ -395,9 +394,7 @@ def process_injestor(key):
                         print(f"FileMode - parsing {item} - processing Proofmode")
                         if injestorConfig["processing"] == "proofmode":
                             content_meta["name"] = "Authenticated image"
-                            content_meta["description"] = (
-                                "Image with ProofMode metadata received via Signal",
-                            )
+                            content_meta["description"] = "Image with ProofMode metadata received via Signal"
                             content_meta["private"][
                                 "proofmode"
                             ] = common.parse_proofmode_data(
