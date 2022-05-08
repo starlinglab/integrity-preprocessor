@@ -81,11 +81,13 @@ def parse_proofmode_data(proofmode_path):
                         for col_name in row:
                             json_metadata_template[col_name] = ""
                             column_index += 1
+                        json_metadata_template['Location.Latitude'] = 0
+                        json_metadata_template['Location.Longitude'] = 0
+                        json_metadata_template['Location.Time'] = 0
                         heading = row
 
                     else:
-                        if json_metadata == None:
-                            json_metadata = copy.deepcopy(json_metadata_template)
+                        json_metadata_row = copy.deepcopy(json_metadata_template)
                         column_index = 0
                         for item in row:
                             if item.strip() != "":
