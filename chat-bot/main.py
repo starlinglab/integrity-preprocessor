@@ -95,7 +95,7 @@ def genreate_folder_metadata(meta_content, meta_channels, meta_min_date, meta_ma
     meta_content["extras"]["dateRange"] = {"from": min_date, "to": max_date}
 
     meta_content["dateCreated"] = meta_date_create
-    return {"contentMetadata": meta_content}
+    return meta_content
 
 
 def generate_metadata_content(meta_chat, injestor):
@@ -164,7 +164,7 @@ def generate_metadata_content(meta_chat, injestor):
     meta_content["private"] = private
     meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
 
-    return {"contentMetadata": meta_content}
+    return meta_content
 
 
 def sha256sum(filename):
