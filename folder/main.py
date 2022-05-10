@@ -76,7 +76,7 @@ def generate_metadata_content(
     meta_content["extras"] = extras
     meta_content["private"] = private
 
-    return {"contentMetadata": meta_content}
+    return meta_content
 
 
 metdata_file_timestamp = -1
