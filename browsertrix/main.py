@@ -205,7 +205,7 @@ def generate_metadata_content(
     meta_content["private"] = private
     meta_content["timestamp"] = datetime.utcnow().isoformat() + "Z"
 
-    return {"contentMetadata": meta_content}
+    return meta_content
 
 
 def send_to_prometheus(metrics):
