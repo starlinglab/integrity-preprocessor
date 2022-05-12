@@ -20,17 +20,17 @@ TMP_DIR = os.environ.get("TMP_DIR", "/tmp/browstertrix-preprocessor")
 LOG_FILE = os.environ.get("LOG_FILE")  # Empty string means stdout
 DATA_DIR = os.environ.get("DATA_DIR")
 PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
-DATA_JSON_PATH = os.path.join(DATA_DIR, "data.json")
+#DATA_JSON_PATH = os.path.join(DATA_DIR, "data.json")
 
 
 TARGET_ROOT_PATH = (
-    "/mnt/integrity_store/starling/internal/starling-lab-test/test-web-archive-dfrlab/"
+    "/mnt/integrity_store/starling/internal/hala-systems/dfrlab-web-archives-remote/"
 )
 
 
 def ConfigureCrawl(itemID, target_urls, meta_data):
 
-    AID = "791b347c-0061-4efa-bb10-a85583294920"
+    AID = "40261f0d-b7b4-4b3d-81ac-9555d54bc7bd"
 
     # Authenticate with Browsertrix
     auth = {"username": USERNAME, "password": PASSWORD}
@@ -71,28 +71,28 @@ def ConfigureCrawl(itemID, target_urls, meta_data):
         raise Exception("Failed to create template")
     CID = res["added"]
 
-    # Start Crawl
-    URL = (
-        f"{BROWSERTRIX_URL}/api/archives/"
-        + AID
-        + "/crawlconfigs/"
-        + CID
-        + "/run"
-    )
+# Use queue system for now
+#    # Start Crawl
+#    URL = (
+#        f"{BROWSERTRIX_URL}/api/archives/"
+#        + AID
+#        + "/crawlconfigs/"
+#        + CID
+#        + "/run"
+#    )
 #    r = requests.post(URL, headers=headers)
 #    res = r.json()
 #    if "started" not in res:
 #        raise Exception("Failed to start crawl")
 #    CRAWL_ID = res["started"]
-    CRAWL_ID = ""
+
     # Prepeare meta data
     meta = {
         "private": {
-            "additionalData": {                    
-                "crawl_id": CRAWL_ID,
+            "additionalData": {
                 "crawl_template_id": CID,
                 "crawl_config": config
-            }            
+            }
         },
         "extra": {
             "DFRLabMetadata": meta_data,
@@ -140,6 +140,3 @@ with open("starling_sample.csv", newline="\n", encoding="utf8") as csvfile:
                 column_index += 1
 
             ConfigureCrawl(TS, URL, json_metadata)
-
-            if countlines >= 20:
-                break
