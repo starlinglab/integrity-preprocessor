@@ -46,7 +46,7 @@ def ConfigureCrawl(itemID, target_urls, meta_data):
 
     # Create crawl template
     config = {
-        "name": itemID,
+        "name": "_Q_" + itemID,
         "colls": [],
         "crawlTimeout": 60 * 60 * 24,
         "scale": 1,
@@ -79,12 +79,12 @@ def ConfigureCrawl(itemID, target_urls, meta_data):
         + CID
         + "/run"
     )
-    r = requests.post(URL, headers=headers)
-    res = r.json()
-    if "started" not in res:
-        raise Exception("Failed to start crawl")
-    CRAWL_ID = res["started"]
-
+#    r = requests.post(URL, headers=headers)
+#    res = r.json()
+#    if "started" not in res:
+#        raise Exception("Failed to start crawl")
+#    CRAWL_ID = res["started"]
+    CRAWL_ID = ""
     # Prepeare meta data
     meta = {
         "private": {
