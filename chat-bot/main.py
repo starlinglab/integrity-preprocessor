@@ -46,7 +46,7 @@ def start_metadata_content(injestor):
         meta_content["private"]["telegram"] = {}
         meta_content["private"]["telegram"]["botAccount"] = injestor["botAccount"]
     meta_content["extras"]["botType"] = bot_type
-    return {"contentMetadata": meta_content}
+    return meta_content
 
 
 # Confirm code is not being used and delete
@@ -367,6 +367,7 @@ def process_injestor(key):
                     print(f"FileMode - parsing {item}")
                     with open(localPath + "/" + filename + ".json", "r") as f:
                         signal_metadata = json.load(f)
+                        print(content_meta)
                         content_meta["private"]["signal"] = signal_metadata
 
                     # additional specific processing
