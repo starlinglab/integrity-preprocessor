@@ -4,7 +4,6 @@ import json
 import os
 import datetime
 import zipfile
-import hashlib
 import tempfile
 from zipfile import ZipFile
 import io
@@ -28,7 +27,7 @@ with open(CONFIG_FILE) as f:
 default_content = config["content"]
 
 
-def start_metadata_content(injestor):
+def start_metadata_content(injestor, meta_chat):
     bot_type = injestor["type"]
     meta_content = deepcopy(default_content)
     meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
@@ -45,134 +44,57 @@ def start_metadata_content(injestor):
     if bot_type == "telegram":
         meta_content["private"]["telegram"] = {}
         meta_content["private"]["telegram"]["botAccount"] = injestor["botAccount"]
+
     meta_content["extras"]["botType"] = bot_type
+
+    if "minDate" in meta_chat:
+        meta_min_date = meta_chat["minDate"]
+        meta_max_date = meta_chat["maxDate"]
+        meta_channels = meta_chat["channels"]
+
+        meta_date_create = ""
+        cosmetic_time = ""
+
+        # Define min and max dates
+        if meta_min_date > -1:
+            meta_date_create = min_date = (
+                datetime.datetime.utcfromtimestamp(meta_min_date).isoformat() + "Z",
+            )
+        if meta_max_date > -1:
+            meta_date_create = max_date = (
+                datetime.datetime.utcfromtimestamp(meta_max_date).isoformat() + "Z",
+            )
+        if meta_date_create == "":
+            meta_date_create = (datetime.datetime.utcnow().isoformat() + "Z",)
+
+        if meta_min_date > -1:
+            cosmetic_date = datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
+                "%B %d, %Y"
+            )
+            cosmetic_time = " at " + datetime.datetime.utcfromtimestamp(
+                meta_min_date
+            ).strftime("%H:%M")
+
+        else:
+            cosmetic_date = "an unknown date"
+
+        meta_content["name"] = f"{bot_type.title()} archive on {cosmetic_date}"
+
+        channel_text = ""
+        if len(meta_channels) > 0:
+            channel_list = ",".join(meta_channels)
+            channel_text = f" of [ {channel_list} ]"
+
+        meta_content[
+            "description"
+        ] = f"Archive{channel_text} by {bot_type.title()} bot starting on {cosmetic_date}{cosmetic_time}"
+
+        meta_content["extras"]["channels"] = meta_channels
+        meta_content["extras"]["dateRange"] = {"from": min_date, "to": max_date}
+
+        meta_content["dateCreated"] = meta_date_create
+
     return meta_content
-
-
-# Confirm code is not being used and delete
-def genreate_folder_metadata(meta_content, meta_channels, meta_min_date, meta_max_date):
-
-    bot_type = meta_content["extras"]["botType"]
-    # Calculate dates
-    min_date = ""
-    max_date = ""
-    meta_date_create = ""
-    if meta_min_date > -1:
-        meta_date_create = min_date = (
-            datetime.datetime.utcfromtimestamp(meta_min_date).isoformat() + "Z",
-        )
-    if meta_max_date > -1:
-        meta_date_create = max_date = (
-            datetime.datetime.utcfromtimestamp(meta_max_date).isoformat() + "Z",
-        )
-    if meta_date_create == "":
-        meta_date_create = (datetime.datetime.utcnow().isoformat() + "Z",)
-
-    if meta_min_date > -1:
-        cosmetic_date = datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
-            "%B %d, %Y"
-        )
-        cosmetic_time = " at " + datetime.datetime.utcfromtimestamp(
-            meta_min_date
-        ).strftime("%H:%M")
-
-    else:
-        cosmetic_date = "an unknown date"
-
-    # Populate
-    bot_name = bot_type.title()
-    meta_content["name"] = f"{bot_name} archive on {cosmetic_date}"
-
-    channel_text = ""
-    if len(meta_channels) > 0:
-        channel_list = ",".join(meta_channels)
-        channel_text = f" of [ {channel_list} ]"
-
-    meta_content[
-        "description"
-    ] = f"Archive{channel_text} by {bot_name} bot starting on {cosmetic_date}{cosmetic_time}"
-
-    meta_content["extras"]["channels"] = meta_channels
-    meta_content["extras"]["dateRange"] = {"from": min_date, "to": max_date}
-
-    meta_content["dateCreated"] = meta_date_create
-    return {"contentMetadata": meta_content}
-
-
-def generate_metadata_content(meta_chat, injestor):
-    bot_type = injestor["type"]
-    meta_min_date = meta_chat["minDate"]
-    meta_max_date = meta_chat["maxDate"]
-    meta_channels = meta_chat["channels"]
-
-    meta_date_create = ""
-    cosmetic_time = ""
-    if meta_min_date > -1:
-        meta_date_create = min_date = (
-            datetime.datetime.utcfromtimestamp(meta_min_date).isoformat() + "Z",
-        )
-    if meta_max_date > -1:
-        meta_date_create = max_date = (
-            datetime.datetime.utcfromtimestamp(meta_max_date).isoformat() + "Z",
-        )
-    if meta_date_create == "":
-        meta_date_create = (datetime.datetime.utcnow().isoformat() + "Z",)
-
-    if meta_min_date > -1:
-        cosmetic_date = datetime.datetime.utcfromtimestamp(meta_min_date).strftime(
-            "%B %d, %Y"
-        )
-        cosmetic_time = " at " + datetime.datetime.utcfromtimestamp(
-            meta_min_date
-        ).strftime("%H:%M")
-
-    else:
-        cosmetic_date = "an unknown date"
-
-    meta_content = deepcopy(default_content)
-
-    bot_name = bot_type.title()
-    meta_content["name"] = f"{bot_name} archive on {cosmetic_date}"
-
-    channel_text = ""
-    if len(meta_channels) > 0:
-        channel_list = ",".join(meta_channels)
-        channel_text = f" of [ {channel_list} ]"
-
-    meta_content[
-        "description"
-    ] = f"Archive{channel_text} by {bot_name} bot starting on {cosmetic_date}{cosmetic_time}"
-
-    extras = {}
-    private = {}
-
-    extras["channels"] = meta_channels
-    extras["dateRange"] = {"from": min_date, "to": max_date}
-
-    if bot_type == "slack":
-        private["slack"] = {}
-        private["slack"]["botAccount"] = injestor["botAccount"]
-        private["slack"]["workspace"] = injestor["workspace"]
-    if bot_type == "signal":
-        private["signal"] = {}
-        private["signal"]["phone"] = injestor["phone"]
-    if bot_type == "telegram":
-        private["telegram"] = {}
-        private["telegram"]["botAccount"] = injestor["botAccount"]
-
-    meta_content["dateCreated"] = meta_date_create
-    meta_content["extras"] = extras
-    meta_content["private"] = private
-    meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
-
-    return {"contentMetadata": meta_content}
-
-
-def sha256sum(filename):
-    with open(filename, "rb") as f:
-        bytes = f.read()  # read entire file as bytes
-        readable_hash = hashlib.sha256(bytes).hexdigest()
-        return readable_hash
 
 
 def zipFolder(zipfile, path):
@@ -186,32 +108,6 @@ def zipFolder(zipfile, path):
 
 
 tmpFolder = "/tmp"
-
-
-def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, output_path):
-
-    # Generate SHA and rename asset
-    sha256asset = sha256sum(source_file)
-    ext = os.path.splitext(source_file)[1]
-
-    # Generate Bundle
-    bundleFileName = os.path.join(stagePath, sha256asset + ".zip")
-    with zipfile.ZipFile(bundleFileName + ".part", "w") as archive:
-        archive.write(source_file, sha256asset + ext)
-        content_meta_data = { "contentMetadata" :content_meta }
-        archive.writestr(sha256asset + "-meta-content.json", json.dumps(content_meta_data))
-        archive.writestr(
-            sha256asset + "-meta-recorder.json",
-            json.dumps(recorder_meta),
-        )
-
-    sha256zip = sha256sum(os.path.join(stagePath, sha256asset + ".zip.part"))
-    # Rename file for watcher
-    os.rename(
-        bundleFileName + ".part",
-        os.path.join(output_path, sha256zip + ".zip"),
-    )
-    return os.path.join(output_path, sha256zip + ".zip")
 
 
 # Parses and groups event files created by telegram both into
@@ -242,6 +138,7 @@ def parse_chat_metadata_from_slack(localPath, folder):
     # Generate channels for slack
     converstaionFileName = os.path.join(localPath, folder, "conversations.json")
     if os.path.exists(converstaionFileName):
+        print ("Processing Conversations")
         with open(converstaionFileName) as f:
             channelData = json.load(f)
             for chan in channelData:
@@ -254,6 +151,7 @@ def parse_chat_metadata_from_slack(localPath, folder):
     # Generate min date/time for slack
     archive_file_name = os.path.join(localPath, folder, "archive.jsonl")
     if os.path.exists(archive_file_name):
+        print ("Processing Archive")
         with open(archive_file_name, "r") as f:
             lines = f.readlines()
             for line in lines:
@@ -310,51 +208,49 @@ def parse_chat_metadata_from_telegram(localPath, folder):
                                 meta["channels"].append(channelName)
     return meta
 
-
-def process_injestor(key):
-    injestorConfig = config["injestors"][key]
+# Process injestor
+def process_injestor(injestor):
+    injestor_config = config["injestors"][injestor]
     user_config = {}
-    if "userConfig" in injestorConfig:
-        with open(injestorConfig["userConfig"]) as f:
+
+    # Load userConfig 
+    if "userConfig" in injestor_config:
+        with open(injestor_config["userConfig"]) as f:
             user_config = json.load(f)
-    stagePath = os.path.join(injestorConfig["targetpath"], "tmp")
-    output_path_default = os.path.join(injestorConfig["targetpath"], "input")
+
+    # Prepeare folders
+    stage_path = os.path.join(injestor_config["targetpath"], "tmp")
+    output_path_default = os.path.join(injestor_config["targetpath"], "input")
     output_path = output_path_default
 
-    if not os.path.exists(stagePath):
-        os.makedirs(stagePath)
+    if not os.path.exists(stage_path):
+        os.makedirs(stage_path)
 
-    content_meta = start_metadata_content(injestorConfig)
-
-    #############################
-    # TELEGRAM BOT FOLDER GROUP #
-    #############################
-    # Group telegram archive into folders
-
-    meta_bot_type = injestorConfig["type"]
+    meta_bot_type = injestor_config["type"]
     meta_channels = []
     meta_date_created = ""
     meta_min_date = -1
     meta_max_date = -1
     meta_data = {}
 
-    if injestorConfig["type"] == "telegram":
-        localPath = injestorConfig["localpath"]
+    if injestor_config["type"] == "telegram":
+        localPath = injestor_config["localpath"]
         telegram_parse_events_into_folders(localPath)
         recorder_meta = common.get_recorder_meta("telegram_bot")
 
-    if injestorConfig["type"] == "slack":
+    if injestor_config["type"] == "slack":
         recorder_meta = common.get_recorder_meta("slack_bot")
         meta_channels = []
 
-    if injestorConfig["type"] == "signal":
+    if injestor_config["type"] == "signal":
         recorder_meta = common.get_recorder_meta("signal_bot")
 
     # Process file mode
-    if injestorConfig["method"] == "file":
-        localPath = injestorConfig["localpath"]
+    if injestor_config["method"] == "file":
+        localPath = injestor_config["localpath"]
         for item in os.listdir(localPath):
             if os.path.isfile(os.path.join(localPath, item)):
+                content_meta = start_metadata_content(injestor_config, {})
                 filesplit = os.path.splitext(item)
                 filename = filesplit[0]
                 fileext = filesplit[1]
@@ -365,27 +261,27 @@ def process_injestor(key):
 
                 # Only look for zip files
                 if fileext == ".zip":
-                    print(f"FileMode - parsing {item}")
+                    print(f"FileMode - Parsing {item}")
                     with open(localPath + "/" + filename + ".json", "r") as f:
                         signal_metadata = json.load(f)
                         content_meta["private"]["signal"] = signal_metadata
 
                     # additional specific processing
                     print(
-                        f"FileMode - parsing {item} - Matching "
+                        f"FileMode - Parsing {item} - Matching "
                         + content_meta["private"]["signal"]["source"]
                     )
                     if content_meta["private"]["signal"]["source"] in user_config:
                         user = user_config[content_meta["private"]["signal"]["source"]]
                         output_path=user["targetpath"]
-                        print(f"FileMode - parsing {item} - Matched " + user["author"]["name"])
+                        print(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
                         content_meta["author"] = user["author"]
 
                         ## TODO org and collection
 
-                    if "processing" in injestorConfig:
+                    if "processing" in injestor_config:
                         print(f"FileMode - parsing {item} - processing Proofmode")
-                        if injestorConfig["processing"] == "proofmode":
+                        if injestor_config["processing"] == "proofmode":
                             content_meta["name"] = "Authenticated image"
                             content_meta["description"] = "Image with ProofMode metadata received via Signal"
                             content_meta["private"][
@@ -395,11 +291,11 @@ def process_injestor(key):
                             )
                             content_meta["dateCreated"] = content_meta["private"]["proofmode"]['dateCreate']
 
-                    out_file = add_to_pipeline(
+                    out_file = common.add_to_pipeline(
                         localPath + "/" + filename + ".zip",
                         content_meta,
                         recorder_meta,
-                        stagePath,
+                        stage_path,
                         output_path
                     )
                     print(f"FileMode - parsing {item} - wrote file {out_file}")
@@ -418,8 +314,8 @@ def process_injestor(key):
                     print(f"FileMode - parsing {item} - Moved to Archive")
 
     # Process folder mode
-    if injestorConfig["method"] == "folder":
-        localPath = injestorConfig["localpath"]
+    if injestor_config["method"] == "folder":
+        localPath = injestor_config["localpath"]
 
         # Loop through date/time structured directories
         for item in os.listdir(localPath):
@@ -447,20 +343,22 @@ def process_injestor(key):
                     # Folder time has passed, process
                     if folderTimeDelta > 0:
 
-                        print(f"FolderMode - parsing {item} ({key})")
-                        if injestorConfig["type"] == "slack":
-                            print(f"FolderMode - parsing {item} - slack")
+                        if injestor_config["type"] == "slack":
+                            print(f"FolderMode - Parsing {item} ({injestor}) Slack")
                             meta_chat = parse_chat_metadata_from_slack(localPath, item)
 
-                        if injestorConfig["type"] == "telegram":
-                            print(f"FolderMode - parsing {item} - telegram")
+                        if injestor_config["type"] == "telegram":
+                            print(f"FolderMode - Parsing {item} ({injestor}) Telegram")
                             meta_chat = parse_chat_metadata_from_telegram(
                                 localPath, item
                             )
+                        else:
+                            print(f"FolderMode - Skipping {item} ({injestor}) UNKNOWN MODE")
+
 
                         # No data to deal with, skip folder
                         if meta_chat is None:
-                            print(f"FolderMode - skipping {item} - meta_chat empty")
+                            print(f"FolderMode - Skipping {item} - meta_chat empty")
                             os.rename(
                                 os.path.join(localPath, item),
                                 os.path.join(localPath, "S-" + item),
@@ -468,22 +366,22 @@ def process_injestor(key):
                             continue
 
                         # Zip up content of directory to a temp file
-                        tmpFileName = os.path.join(
-                            tmpFolder, key + str(folderDateTime.timestamp()) + ".zip"
+                        temp_filename = os.path.join(
+                            tmpFolder, injestor + str(folderDateTime.timestamp()) + ".zip"
                         )
-                        with zipfile.ZipFile(tmpFileName, "w") as archive:
+                        with zipfile.ZipFile(temp_filename, "w") as archive:
                             zipFolder(archive, os.path.join(localPath, item))
 
-                        content_meta = generate_metadata_content(
-                            meta_chat,
-                            injestorConfig,
+                        content_meta = start_metadata_content(
+                            injestor_config,
+                            meta_chat
                         )
 
-                        add_to_pipeline(
-                            tmpFileName,
+                        out_file = common.add_to_pipeline(
+                            temp_filename,
                             content_meta,
                             recorder_meta,
-                            stagePath,
+                            stage_path,
                             output_path,
                         )
                         print(f"FolderMode - parsing {item} - wrote file {out_file}")
@@ -497,7 +395,7 @@ def process_injestor(key):
 
 while True:
     try:
-        for key in config["injestors"]:
-            process_injestor(key)
+        for injestor in config["injestors"]:
+            process_injestor(injestor)
     except Exception as inst:
         raise inst
