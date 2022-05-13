@@ -6,6 +6,7 @@ import csv
 from zipfile import ZipFile
 import io
 import datetime
+import hashlib
 
 sys.path.append(
     os.path.dirname(os.path.realpath(__file__)) + "/../integrity_recorder_id"
@@ -16,6 +17,31 @@ integrity_recorder_id.build_recorder_id_json()
 
 metdata_file_timestamp = 0
 
+
+def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output_path):
+
+    # Generate SHA and rename asset
+    sha256asset = sha256sum(source_file)
+    ext = os.path.splitext(source_file)[1]
+
+    # Generate Bundle
+    bundleFileName = os.path.join(stage_path, sha256asset + ".zip")
+    with ZipFile(bundleFileName + ".part", "w") as archive:
+        archive.write(source_file, sha256asset + ext)
+        content_meta_data = { "contentMetadata" :content_meta }
+        archive.writestr(sha256asset + "-meta-content.json", json.dumps(content_meta_data))
+        archive.writestr(
+            sha256asset + "-meta-recorder.json",
+            json.dumps(recorder_meta),
+        )
+
+    sha256zip = sha256sum(os.path.join(stage_path, sha256asset + ".zip.part"))
+    # Rename file for watcher
+    os.rename(
+        bundleFileName + ".part",
+        os.path.join(output_path, sha256zip + ".zip"),
+    )
+    return os.path.join(output_path, sha256zip + ".zip")
 
 def get_recorder_meta(type):
     global metdata_file_timestamp, recorder_meta_all
@@ -34,6 +60,12 @@ def get_recorder_meta(type):
                 print("Recorder Metadata Change Detected")
                 metdata_file_timestamp = current_metadata_file_timestamp
     return recorder_meta_all
+
+def sha256sum(filename):
+    with open(filename, "rb") as f:
+        bytes = f.read()  # read entire file as bytes
+        readable_hash = hashlib.sha256(bytes).hexdigest()
+        return readable_hash
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
