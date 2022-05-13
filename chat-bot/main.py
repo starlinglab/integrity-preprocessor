@@ -198,7 +198,8 @@ def add_to_pipeline(source_file, content_meta, recorder_meta, stagePath, output_
     bundleFileName = os.path.join(stagePath, sha256asset + ".zip")
     with zipfile.ZipFile(bundleFileName + ".part", "w") as archive:
         archive.write(source_file, sha256asset + ext)
-        archive.writestr(sha256asset + "-meta-content.json", json.dumps(content_meta))
+        content_meta_data = { "contentMetadata" :content_meta }
+        archive.writestr(sha256asset + "-meta-content.json", json.dumps(content_meta_data))
         archive.writestr(
             sha256asset + "-meta-recorder.json",
             json.dumps(recorder_meta),
@@ -378,7 +379,6 @@ def process_injestor(key):
                         user = user_config[content_meta["private"]["signal"]["source"]]
                         output_path=user["targetpath"]
                         print(f"FileMode - parsing {item} - Matched " + user["author"]["name"])
-
                         content_meta["author"] = user["author"]
 
                         ## TODO org and collection
