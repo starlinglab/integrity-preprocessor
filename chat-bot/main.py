@@ -377,7 +377,7 @@ def process_injestor(key):
                     if content_meta["private"]["signal"]["source"] in user_config:
                         user = user_config[content_meta["private"]["signal"]["source"]]
                         output_path=user["targetpath"]
-                        print(f"FileMode - parsing {item} - Matched " + user["name"])
+                        print(f"FileMode - parsing {item} - Matched " + user["author"]["name"])
 
                         content_meta["author"] = user["author"]
 
