@@ -367,7 +367,6 @@ def process_injestor(key):
                     print(f"FileMode - parsing {item}")
                     with open(localPath + "/" + filename + ".json", "r") as f:
                         signal_metadata = json.load(f)
-                        print(content_meta)
                         content_meta["private"]["signal"] = signal_metadata
 
                     # additional specific processing
@@ -377,18 +376,10 @@ def process_injestor(key):
                     )
                     if content_meta["private"]["signal"]["source"] in user_config:
                         user = user_config[content_meta["private"]["signal"]["source"]]
-                        content_meta["private"]["signal"]["sourceName"] = user["name"]
                         output_path=user["targetpath"]
                         print(f"FileMode - parsing {item} - Matched " + user["name"])
 
-                        if "author" in user:
-                            content_meta["author"] = user["author"]
-                        else:
-                            author = {
-                                "@type": "Person",
-                                "name": user["name"],
-                            }
-                            content_meta["author"] = author
+                        content_meta["author"] = user["author"]
 
                         ## TODO org and collection
 
