@@ -138,7 +138,7 @@ def parse_chat_metadata_from_slack(localPath, folder):
     # Generate channels for slack
     converstaionFileName = os.path.join(localPath, folder, "conversations.json")
     if os.path.exists(converstaionFileName):
-        print ("Processing Conversations")
+        print (f"FolderMode - MetaExtract {folder} Processing Conversations")
         with open(converstaionFileName) as f:
             channelData = json.load(f)
             for chan in channelData:
@@ -151,7 +151,7 @@ def parse_chat_metadata_from_slack(localPath, folder):
     # Generate min date/time for slack
     archive_file_name = os.path.join(localPath, folder, "archive.jsonl")
     if os.path.exists(archive_file_name):
-        print ("Processing Archive")
+        print (f"FolderMode - MetaExtract {folder} Processing Archive")
         with open(archive_file_name, "r") as f:
             lines = f.readlines()
             for line in lines:
@@ -346,8 +346,7 @@ def process_injestor(injestor):
                         if injestor_config["type"] == "slack":
                             print(f"FolderMode - Parsing {item} ({injestor}) Slack")
                             meta_chat = parse_chat_metadata_from_slack(localPath, item)
-
-                        if injestor_config["type"] == "telegram":
+                        elif injestor_config["type"] == "telegram":
                             print(f"FolderMode - Parsing {item} ({injestor}) Telegram")
                             meta_chat = parse_chat_metadata_from_telegram(
                                 localPath, item
@@ -384,7 +383,7 @@ def process_injestor(injestor):
                             stage_path,
                             output_path,
                         )
-                        print(f"FolderMode - parsing {item} - wrote file {out_file}")
+                        print(f"FolderMode - Output {item} - Write file {out_file}")
 
                         # Rename folder to prevent re-processing
                         os.rename(
