@@ -46,9 +46,10 @@ def start_metadata_content(injestor):
         meta_content["private"]["telegram"] = {}
         meta_content["private"]["telegram"]["botAccount"] = injestor["botAccount"]
     meta_content["extras"]["botType"] = bot_type
-    return meta_content
+    return {"contentMetadata": meta_content}
 
 
+# Confirm code is not being used and delete
 def genreate_folder_metadata(meta_content, meta_channels, meta_min_date, meta_max_date):
 
     bot_type = meta_content["extras"]["botType"]
@@ -95,7 +96,7 @@ def genreate_folder_metadata(meta_content, meta_channels, meta_min_date, meta_ma
     meta_content["extras"]["dateRange"] = {"from": min_date, "to": max_date}
 
     meta_content["dateCreated"] = meta_date_create
-    return meta_content
+    return {"contentMetadata": meta_content}
 
 
 def generate_metadata_content(meta_chat, injestor):
@@ -164,7 +165,7 @@ def generate_metadata_content(meta_chat, injestor):
     meta_content["private"] = private
     meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
 
-    return meta_content
+    return {"contentMetadata": meta_content}
 
 
 def sha256sum(filename):
