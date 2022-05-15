@@ -72,19 +72,19 @@ def parse_proofmode_data(proofmode_path):
     data = ""
     filename = ""
     result = {}
-    dateCreate = None
+    date_create = None
     # ProofMode metadata extraction
     with ZipFile(proofmode_path, "r") as proofmode:
 
+        is_utc = True
         public_pgp = proofmode.read("pubkey.asc").decode("utf-8")        
-        dateCreate = None
 
         for file in proofmode.namelist():
             x = proofmode.getinfo(file).date_time
-            current_date_create = datetime.datetime(x[0],x[1],x[2],x[3],x[4],x[5],0)              
+            current_date_create = datetime.datetime(x[0],x[1],x[2],x[3],x[4],x[5],0)
 
-            if dateCreate is None or current_date_create < dateCreate:
-                dateCreate = current_date_create
+            if date_create is None or current_date_create < date_create:
+                date_create = current_date_create
 
             if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
 
@@ -130,8 +130,8 @@ def parse_proofmode_data(proofmode_path):
                 json_metadata["pgpSignature"] = pgp
                 json_metadata["pgpPublicKey"] = public_pgp
                 json_metadata['sha256hash'] = json_metadata["proofs"][0]["File Hash SHA256"]
-                json_metadata['dateCreate'] = current_date_create.isoformat() + "Z"
+                json_metadata['dateCreate'] = current_date_create.isoformat()
                 source_filename = os.path.basename(json_metadata["proofs"][0]["File Path"])
                 result[source_filename] = json_metadata
-            result['dateCreate'] = dateCreate.isoformat() + "Z"
+            result['dateCreate'] = date_create.isoformat()
     return result
