@@ -282,13 +282,23 @@ def process_injestor(injestor):
                     if "processing" in injestor_config:
                         print(f"FileMode - parsing {item} - processing Proofmode")
                         if injestor_config["processing"] == "proofmode":
-                            content_meta["name"] = "Authenticated image"
-                            content_meta["description"] = "Image with ProofMode metadata received via Signal"
                             content_meta["private"][
                                 "proofmode"
                             ] = common.parse_proofmode_data(
                                 localPath + "/" + filename + ".zip"
                             )
+                            asset_type = "content"
+                            for asset_filename in content_meta["private"]["proofmode"]:
+                                ext = os.path.splitext(asset_filename)[1]                                
+                                if ext == ".jpg" or ext == ".png" or ext == ".heic":
+                                    asset_type = "image"
+                                if ext == ".wav" or ext == ".m4a" or ext == ".mp3":
+                                    asset_type = "audio"
+                                if ext == ".mp4" or ext == ".m4v" or ext == ".avi" or ext == ".mov":
+                                    asset_type = "video"
+
+                            content_meta["name"] = f"Authenticated {asset_type}"
+                            content_meta["description"] = f"{asset_type.title()} with ProofMode metadata received via Signal"                            
                             content_meta["dateCreated"] = content_meta["private"]["proofmode"]['dateCreate']
 
                     out_file = common.add_to_pipeline(
