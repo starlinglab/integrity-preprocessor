@@ -119,8 +119,6 @@ def parse_proofmode_data(proofmode_path):
     # ProofMode metadata extraction
     with ZipFile(proofmode_path, "r") as proofmode:
 
-        dateCreate = None
-        is_utc = True
         public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
         # In dir named after proofmode ZIP
@@ -208,7 +206,7 @@ def parse_proofmode_data(proofmode_path):
                         f"Signature for data/image file {source_filename} did not verify: {file_hash + '.asc'}"
                     )
 
-            result["dateCreate"] = dateCreate.isoformat()
+            result["dateCreate"] = date_create.isoformat()
 
     os.remove(this_tmp_dir)
 
