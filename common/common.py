@@ -7,6 +7,7 @@ import time
 from zipfile import ZipFile
 import datetime
 import subprocess
+import hashlib
 
 sys.path.append(
     os.path.dirname(os.path.realpath(__file__)) + "/../integrity_recorder_id"
@@ -23,6 +24,31 @@ TMP_DIR = "/tmp/integrity-preprocessor/common"
 
 os.makedirs(TMP_DIR, exist_ok=True)
 
+
+def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output_path):
+
+    # Generate SHA and rename asset
+    sha256asset = sha256sum(source_file)
+    ext = os.path.splitext(source_file)[1]
+
+    # Generate Bundle
+    bundleFileName = os.path.join(stage_path, sha256asset + ".zip")
+    with ZipFile(bundleFileName + ".part", "w") as archive:
+        archive.write(source_file, sha256asset + ext)
+        content_meta_data = { "contentMetadata" :content_meta }
+        archive.writestr(sha256asset + "-meta-content.json", json.dumps(content_meta_data))
+        archive.writestr(
+            sha256asset + "-meta-recorder.json",
+            json.dumps(recorder_meta),
+        )
+
+    sha256zip = sha256sum(os.path.join(stage_path, sha256asset + ".zip.part"))
+    # Rename file for watcher
+    os.rename(
+        bundleFileName + ".part",
+        os.path.join(output_path, sha256zip + ".zip"),
+    )
+    return os.path.join(output_path, sha256zip + ".zip")
 
 def get_recorder_meta(type):
     global metdata_file_timestamp, recorder_meta_all
@@ -74,17 +100,23 @@ def verify_gpg_sig(key, sig, msg):
     # Some other unexpected return code, means an error has occured
     proc.check_returncode()
 
+def sha256sum(filename):
+    with open(filename, "rb") as f:
+        bytes = f.read()  # read entire file as bytes
+        readable_hash = hashlib.sha256(bytes).hexdigest()
+        return readable_hash
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
     data = ""
     result = {}
-    dateCreate = None
+    date_create = None
     # ProofMode metadata extraction
     with ZipFile(proofmode_path, "r") as proofmode:
 
-        public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
         dateCreate = None
+        is_utc = True
+        public_pgp = proofmode.read("pubkey.asc").decode("utf-8")        
 
         # In dir named after proofmode ZIP
         this_tmp_dir = os.path.join(
@@ -113,8 +145,8 @@ def parse_proofmode_data(proofmode_path):
                 x[0], x[1], x[2], x[3], x[4], x[5], 0
             )
 
-            if dateCreate is None or current_date_create < dateCreate:
-                dateCreate = current_date_create
+            if date_create is None or current_date_create < date_create:
+                date_create = current_date_create
 
             if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
 
@@ -157,11 +189,11 @@ def parse_proofmode_data(proofmode_path):
                 json_metadata["pgpPublicKey"] = public_pgp
                 file_hash = json_metadata["proofs"][0]["File Hash SHA256"]
                 json_metadata["sha256hash"] = file_hash
-                json_metadata["dateCreate"] = current_date_create.isoformat() + "Z"
+                json_metadata["dateCreate"] = current_date_create.isoformat()
                 source_filename = os.path.basename(
                     json_metadata["proofs"][0]["File Path"]
                 )
-                result[source_filename] = json_metadata
+                result[source_filename] = json_metadataF
 
                 # Verify data signature (usually JPEG)
                 data_path = proofmode.extract(source_filename, path=this_tmp_dir)
@@ -171,7 +203,7 @@ def parse_proofmode_data(proofmode_path):
                         f"Signature for data/image file {source_filename} did not verify: {file_hash + '.asc'}"
                     )
 
-            result["dateCreate"] = dateCreate.isoformat() + "Z"
+            result["dateCreate"] = dateCreate.isoformat()
 
     os.remove(this_tmp_dir)
 

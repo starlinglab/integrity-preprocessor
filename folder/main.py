@@ -76,7 +76,7 @@ def generate_metadata_content(
     meta_content["extras"] = extras
     meta_content["private"] = private
 
-    return meta_content
+    return {"contentMetadata": meta_content}
 
 
 metdata_file_timestamp = -1
@@ -217,11 +217,16 @@ def parse_proofmode_data(proofmode_path):
         return result
 
 
-class WatchFolder:
+class watch_folder:
     "Class defining a scan folder"
     event_handler = None
 
     def __init__(self, conf):
+        if os.path.exists(conf["sourcePath"]) == False:
+            os.mkdir(conf["sourcePath"])
+            os.chown(conf["sourcePath"], 1001, 1001)
+            print("Creating folder " + conf["sourcePath"])
+
         self.path = conf["sourcePath"]
         self.config = conf
         patterns = conf["allowedPatterns"]
@@ -257,8 +262,12 @@ class WatchFolder:
         meta_uploader_name = ""
         if extractName:
             fileName = os.path.basename(event.src_path)
+
             tmp = fileName.split(" ___ ", 2)
-            meta_uploader_name = tmp[0]
+            if len(tmp) == 2:
+                meta_uploader_name = tmp[0]
+            else:
+                meta_uploader_name = ""
 
         bundleFileName = os.path.join(stagePath, sha256asset + ".zip")
 
@@ -301,7 +310,7 @@ scan_folder = []
 with open(CONFIG_FILE) as f:
     config = json.load(f)
     for item in config:
-        scan_folder.append(WatchFolder(config[item]))
+        scan_folder.append(watch_folder(config[item]))        
 
 try:
     while True:
