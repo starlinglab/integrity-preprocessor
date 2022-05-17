@@ -79,7 +79,8 @@ def dearmor_gpg_key(key, out):
     All arguments are paths.
     """
 
-    subprocess.run(["gpg", "-o", out, "--dearmor", key], check=True)
+    # --yes to allow file overwriting
+    subprocess.run(["gpg", "--yes", "-o", out, "--dearmor", key], check=True)
 
 
 def verify_gpg_sig(key, sig, msg):
