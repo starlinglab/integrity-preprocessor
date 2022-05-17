@@ -125,7 +125,7 @@ def parse_proofmode_data(proofmode_path):
         this_tmp_dir = os.path.join(
             TMP_DIR, os.path.basename(os.path.splitext(proofmode_path)[0])
         )
-        if os.path.exists(this_tmp_dir):
+        if not os.path.exists(this_tmp_dir):
             os.mkdir(this_tmp_dir)
 
         dearmored_key_path = os.path.join(this_tmp_dir, "dearmored_key")
