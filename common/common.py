@@ -3,7 +3,7 @@ import sys
 import os
 import json
 import csv
-import time
+import shutil
 from zipfile import ZipFile
 import datetime
 import subprocess
@@ -210,6 +210,6 @@ def parse_proofmode_data(proofmode_path):
 
             result["dateCreate"] = date_create.isoformat()
 
-    os.rmdir(this_tmp_dir)
+    shutil.rmtree(this_tmp_dir)
 
     return result
