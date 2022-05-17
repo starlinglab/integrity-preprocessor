@@ -195,7 +195,7 @@ def generate_metadata_content(
             if c == 4:
                 suffix = ", ..."
             i.append(extras["pages"][item])
-        pagelist = f"[ " + ", ".join(i[:3]) + "{suffix} ]"
+        pagelist = "[ " + ", ".join(i[:3]) + f"{suffix} ]"
 
     meta_content[
         "description"
