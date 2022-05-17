@@ -35,8 +35,10 @@ def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output
     bundleFileName = os.path.join(stage_path, sha256asset + ".zip")
     with ZipFile(bundleFileName + ".part", "w") as archive:
         archive.write(source_file, sha256asset + ext)
-        content_meta_data = { "contentMetadata" :content_meta }
-        archive.writestr(sha256asset + "-meta-content.json", json.dumps(content_meta_data))
+        content_meta_data = {"contentMetadata": content_meta}
+        archive.writestr(
+            sha256asset + "-meta-content.json", json.dumps(content_meta_data)
+        )
         archive.writestr(
             sha256asset + "-meta-recorder.json",
             json.dumps(recorder_meta),
@@ -49,6 +51,7 @@ def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output
         os.path.join(output_path, sha256zip + ".zip"),
     )
     return os.path.join(output_path, sha256zip + ".zip")
+
 
 def get_recorder_meta(type):
     global metdata_file_timestamp, recorder_meta_all
@@ -100,11 +103,13 @@ def verify_gpg_sig(key, sig, msg):
     # Some other unexpected return code, means an error has occured
     proc.check_returncode()
 
+
 def sha256sum(filename):
     with open(filename, "rb") as f:
         bytes = f.read()  # read entire file as bytes
         readable_hash = hashlib.sha256(bytes).hexdigest()
         return readable_hash
+
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
@@ -116,7 +121,7 @@ def parse_proofmode_data(proofmode_path):
 
         dateCreate = None
         is_utc = True
-        public_pgp = proofmode.read("pubkey.asc").decode("utf-8")        
+        public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
         # In dir named after proofmode ZIP
         this_tmp_dir = os.path.join(
@@ -193,7 +198,7 @@ def parse_proofmode_data(proofmode_path):
                 source_filename = os.path.basename(
                     json_metadata["proofs"][0]["File Path"]
                 )
-                result[source_filename] = json_metadataF
+                result[source_filename] = json_metadata
 
                 # Verify data signature (usually JPEG)
                 data_path = proofmode.extract(source_filename, path=this_tmp_dir)
