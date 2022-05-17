@@ -125,7 +125,8 @@ def parse_proofmode_data(proofmode_path):
         this_tmp_dir = os.path.join(
             TMP_DIR, os.path.basename(os.path.splitext(proofmode_path)[0])
         )
-        os.mkdir(this_tmp_dir)
+        if os.path.exists(this_tmp_dir):
+            os.mkdir(this_tmp_dir)
 
         dearmored_key_path = os.path.join(this_tmp_dir, "dearmored_key")
         proofmode.extract("pubkey.asc", path=this_tmp_dir)
@@ -208,6 +209,6 @@ def parse_proofmode_data(proofmode_path):
 
             result["dateCreate"] = date_create.isoformat()
 
-    os.remove(this_tmp_dir)
+    os.rmdir(this_tmp_dir)
 
     return result
