@@ -175,7 +175,7 @@ def generate_metadata_content(
         extras.update(meta_additional["extras"])
     private = {}
     if "private" in meta_additional:
-        extras.update(meta_additional["private"])
+        private.update(meta_additional["private"])
 
     private["crawlConfigs"] = meta_crawl_config
     private["crawlData"] = meta_crawl_data
@@ -617,7 +617,7 @@ while True:
             # Write the ID to a file for refrence
             if os.path.exists(meta_additional_filename):
                 f = open(meta_additional_filename + ".id.txt", "w")
-                f.write(sha256wacz)
+                f.write(sha256zip)
                 f.close()
 
             logging.info("Successfully processed crawl %s", crawl["id"])

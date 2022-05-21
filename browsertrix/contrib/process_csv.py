@@ -27,10 +27,11 @@ TARGET_ROOT_PATH = (
     "/mnt/integrity_store/starling/internal/hala-systems/dfrlab-web-archives-remote/"
 )
 
+startrow = 2
+endrow = 2
 
 def ConfigureCrawl(itemID, target_urls, meta_data):
-
-    AID = "40261f0d-b7b4-4b3d-81ac-9555d54bc7bd"
+    AID = "405805c2-b761-449a-9d4c-5caaf935245e"
 
     # Authenticate with Browsertrix
     auth = {"username": USERNAME, "password": PASSWORD}
@@ -67,6 +68,7 @@ def ConfigureCrawl(itemID, target_urls, meta_data):
     )
     r = requests.post(URL, json=config, headers=headers)
     res = r.json()
+
     if "added" not in res:
         raise Exception("Failed to create template")
     CID = res["added"]
@@ -87,18 +89,29 @@ def ConfigureCrawl(itemID, target_urls, meta_data):
 #    CRAWL_ID = res["started"]
 
     # Prepeare meta data
+
+    meta_data_private = {}
+    meta_data_public = {}
+
+    for m in meta_data:
+        if m.startswith('private_'):
+            meta_data_private[m]=meta_data[m]
+        else:
+            meta_data_public[m]=meta_data[m]
+
     meta = {
         "private": {
             "additionalData": {
                 "crawl_template_id": CID,
-                "crawl_config": config
+                "crawl_config": config,
+                "DFRLabMetadata": meta_data_private
             }
         },
-        "extra": {
-            "DFRLabMetadata": meta_data,
+        "extras": {
+            "DFRLabMetadata": meta_data_public
         }
     }
-
+   
     # Save file as json
     metaPath = TARGET_ROOT_PATH + "/preprocessor_metadata"
     if not os.path.exists(metaPath):
@@ -110,7 +123,7 @@ def ConfigureCrawl(itemID, target_urls, meta_data):
     text_file.close()
 
 
-with open("starling_sample.csv", newline="\n", encoding="utf8") as csvfile:
+with open("urk_research_urls_5_20_FINAL.csv", newline="\n", encoding="utf8") as csvfile:
     csv_reader = csv.reader(
         csvfile,
         delimiter=",",
@@ -124,12 +137,15 @@ with open("starling_sample.csv", newline="\n", encoding="utf8") as csvfile:
         if heading == None:
             column_index = 0
             for col_name in row:
+                if col_name=="":
+                    col_name = "col_" + str(column_index)
+                    row[col_name] = col_name
                 json_metadata_template[col_name] = ""
                 column_index += 1
             heading = row
         else:
-            URL = ast.literal_eval(row[0])
-            TS = row[2]
+            
+            
 
             countlines = countlines + 1
 
@@ -138,5 +154,14 @@ with open("starling_sample.csv", newline="\n", encoding="utf8") as csvfile:
             for item in row:
                 json_metadata[heading[column_index]] = item
                 column_index += 1
+            URL = json_metadata["urls"] # ast.literal_eval(row[0])
 
-            ConfigureCrawl(TS, URL, json_metadata)
+            if URL.startswith("["): 
+                URL = ast.literal_eval(URL)
+
+            TS = json_metadata["ts"]  # row[3]
+
+            if countlines >= startrow:
+                ConfigureCrawl(TS, URL, json_metadata)
+            if countlines >= endrow:
+                break
