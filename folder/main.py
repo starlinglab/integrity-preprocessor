@@ -11,7 +11,6 @@ import watchdog.events
 from zipfile import ZipFile
 import magic
 import csv
-import logging
 
 from watchdog.observers import Observer
 
@@ -26,13 +25,7 @@ dotenv.load_dotenv()
 
 CONFIG_FILE = os.environ.get("CONFIG_FILE")
 
-logging.basicConfig(
-    filename=None,
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-common.logging=logging
+logging = common.logging
 logging.info("Started folder preprocessor")
 
 

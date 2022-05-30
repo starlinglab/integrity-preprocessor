@@ -8,6 +8,7 @@ from zipfile import ZipFile
 import datetime
 import subprocess
 import hashlib
+import logging
 
 import integrity_recorder_id
 
@@ -21,7 +22,12 @@ TMP_DIR = "/tmp/integrity-preprocessor/common"
 
 os.makedirs(TMP_DIR, exist_ok=True)
 
-logging = None
+logging.basicConfig(
+    filename=None,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output_path):
 
