@@ -131,13 +131,13 @@ class watch_folder:
         if "method" in self.config:
             meta_method = self.config["method"]
 
-        stagePath = os.path.join(target, "tmp")
-        outputPath = os.path.join(target, "input")
+        stage_path = os.path.join(target, "tmp")
+        output_path = os.path.join(target, "input")
 
-        if not os.path.exists(stagePath):
-            os.makedirs(stagePath)
+        if not os.path.exists(stage_path):
+            os.makedirs(stage_path)
 
-        assetFileName = event.src_path
+        asset_filename = event.src_path
         meta_uploader_name = ""
         if extractName:
             fileName = os.path.basename(event.src_path)
@@ -148,26 +148,26 @@ class watch_folder:
             else:
                 meta_uploader_name = ""
 
-        bundleFileName = os.path.join(stagePath, sha256asset + ".zip")
+        bundleFileName = os.path.join(stage_path, sha256asset + ".zip")
 
-        meta_date_create = os.path.getmtime(assetFileName)
+        meta_date_create = os.path.getmtime(asset_filename)
 
         extras = {}
         if "processWacz" in self.config and self.config["processWacz"]:
-            logging.info(f"{assetFileName} Processing file as a wacz")
-            extras = common.parse_wacz_data_extra(assetFileName)
+            logging.info(f"{asset_filename} Processing file as a WACZ")
+            extras = common.parse_wacz_data_extra(asset_filename)
         if "processProofMode" in self.config and self.config["processProofMode"]:
-            logging.info(f"{assetFileName} Processing file as a ProofMode")
-            extras = common.parse_proofmode_data(assetFileName)
+            logging.info(f"{asset_filename} Processing file as a ProofMode")
+            extras = parse_proofmode_data(asset_filename)
 
         content_meta = generate_metadata_content(
-            meta_date_create, assetFileName, meta_uploader_name, extras, meta_method
+            meta_date_create, asset_filename, meta_uploader_name, extras, meta_method
         )
         recorder_meta = common.get_recorder_meta("folder")
 
         
-        out_file = common.add_to_pipeline(assetFileName, content_meta, recorder_meta, stagePath, outputPath)
-        logging.info(f"{assetFileName} Created new asset {out_file}")
+        out_file = common.add_to_pipeline(asset_filename, content_meta, recorder_meta, stage_path, output_path)
+        logging.info(f"{asset_filename} Created new asset {out_file}")
 
 
     def stop(self):
