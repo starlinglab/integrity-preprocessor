@@ -11,6 +11,7 @@ import watchdog.events
 from zipfile import ZipFile
 import magic
 import csv
+import logging
 
 from watchdog.observers import Observer
 
@@ -19,8 +20,19 @@ sys.path.append(
     os.path.dirname(os.path.realpath(__file__)) + "/../lib"
 )
 import integrity_recorder_id
+import common
 
 dotenv.load_dotenv()
+
+logging.basicConfig(
+    filename=None,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+common.logging=logging
+logging.info("Started folder preprocessor")
+
 
 CONFIG_FILE = os.environ.get("CONFIG_FILE")
 
@@ -82,22 +94,6 @@ def generate_metadata_content(
 metdata_file_timestamp = -1
 
 
-def prepare_metadata_recorder():
-    global metdata_file_timestamp, recorder_meta_all
-
-    current_metadata_file_timestamp = os.path.getmtime(
-        integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH
-    )
-
-    if current_metadata_file_timestamp > metdata_file_timestamp:
-        if os.path.exists(integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH):
-            with open(
-                integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH, "r"
-            ) as f:
-                recorder_meta_all = json.load(f)
-                print("Recorder Metadata Change Detected")
-                metdata_file_timestamp = current_metadata_file_timestamp
-    return recorder_meta_all
 
 
 def sha256sum(filename):
@@ -284,7 +280,7 @@ class watch_folder:
         content_meta = generate_metadata_content(
             meta_date_create, assetFileName, meta_uploader_name, extras, meta_method
         )
-        recorder_meta = prepare_metadata_recorder()
+        recorder_meta = common.get_recorder_meta("folder")
         extension = os.path.splitext(assetFileName)[1]
         with ZipFile(bundleFileName + ".part", "w") as archive:
             archive.write(assetFileName, os.path.basename(sha256asset + extension))

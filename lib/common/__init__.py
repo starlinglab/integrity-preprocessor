@@ -21,6 +21,7 @@ TMP_DIR = "/tmp/integrity-preprocessor/common"
 
 os.makedirs(TMP_DIR, exist_ok=True)
 
+logging = None
 
 def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output_path):
 
@@ -108,6 +109,43 @@ def sha256sum(filename):
         readable_hash = hashlib.sha256(bytes).hexdigest()
         return readable_hash
 
+def parse_wacz_data(wacz_path):
+    # WACZ metadata extraction
+    with ZipFile(wacz_path, "r") as wacz:
+        d = json.loads(wacz.read("datapackage-digest.json"))
+        extras = {}
+
+        if "signedData" in d:
+            # auth sign data
+            if "authsignDomain" in d["signedData"]:
+                extras["authsignSoftware"] = d["signedData"]["software"]
+                extras["authsignDomain"] = d["signedData"]["domain"]
+            elif "publicKey" in d["signedData"]:
+                extras["localsignSoftware"] = d["signedData"]["software"]
+                extras["localsignPublicKey"] = d["signedData"]["publicKey"]
+                extras["localsignSignaturey"] = d["signedData"]["signature"]
+            else:
+                logging.info("WACZ missing signature ")
+
+        d = json.loads(wacz.read("datapackage.json"))
+        extras["waczVersion"] = d["wacz_version"]
+        extras["software"] = d["software"]
+        extras["dateCrawled"] = d["created"]
+
+        if "title" in d:
+            extras["waczTitle"] = d["title"]
+
+        extras["pages"] = {}
+        if "pages/pages.jsonl" in wacz.namelist():
+            with wacz.open("pages/pages.jsonl") as jsonl_file:
+                for line in jsonl_file.readlines():
+                    d = json.loads(line)
+                    if "url" in d:
+                        extras["pages"][d["id"]] = d["url"]
+        else:
+            logging.info("Missing pages/pages.jsonl in archive %s", wacz_path)
+
+        return extras
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
