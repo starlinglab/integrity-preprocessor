@@ -147,7 +147,6 @@ def parse_chat_metadata_from_slack(localPath, folder):
                     and channelData[chan]["is_member"] == True
                 ):
                     meta["channels"].append(channelData[chan]["name"])
-
     # Generate min date/time for slack
     archive_file_name = os.path.join(localPath, folder, "archive.jsonl")
     if os.path.exists(archive_file_name):
@@ -155,11 +154,11 @@ def parse_chat_metadata_from_slack(localPath, folder):
         with open(archive_file_name, "r") as f:
             lines = f.readlines()
             for line in lines:
-                channelData = json.loads(line)
-                if meta["minDate"] == -1 or meta["minDate"] > float(channelData["ts"]):
-                    meta["minDate"] = float(channelData["ts"])
-                if meta["maxDate"] < float(channelData["ts"]):
-                    meta["maxDate"] = float(channelData["ts"])
+                archive_data = json.loads(line)
+                if meta["minDate"] == -1 or meta["minDate"] > float(archive_data["ts"]):
+                    meta["minDate"] = float(archive_data["ts"])
+                if meta["maxDate"] < float(archive_data["ts"]):
+                    meta["maxDate"] = float(archive_data["ts"])
     else:
         return None
     return meta
