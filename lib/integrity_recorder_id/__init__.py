@@ -1,9 +1,9 @@
 import os
-import sys
 import json
 from subprocess import getoutput
 import dotenv
 import datetime
+
 
 def dockerComposeHash(repoPath):
     os.chdir(repoPath)

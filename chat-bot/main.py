@@ -13,7 +13,7 @@ import dotenv
 # Kludge
 import sys
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../common")
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import common
 
 
