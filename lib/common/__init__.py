@@ -9,9 +9,6 @@ import datetime
 import subprocess
 import hashlib
 
-sys.path.append(
-    os.path.dirname(os.path.realpath(__file__)) + "/../integrity_recorder_id"
-)
 import integrity_recorder_id
 
 integrity_recorder_id.build_recorder_id_json()
