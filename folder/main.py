@@ -222,7 +222,7 @@ class watch_folder:
             os.mkdir(conf["sourcePath"])
             os.chown(conf["sourcePath"], 1001, 1001)
             print("Creating folder " + conf["sourcePath"])
-
+        os.chown(conf["sourcePath"], 1001, 1001)
         self.path = conf["sourcePath"]
         self.config = conf
         patterns = conf["allowedPatterns"]
