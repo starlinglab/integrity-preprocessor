@@ -9,6 +9,7 @@ import datetime
 import subprocess
 import hashlib
 
+import verify
 import integrity_recorder_id
 
 integrity_recorder_id.build_recorder_id_json()
@@ -69,39 +70,6 @@ def get_recorder_meta(type):
     return recorder_meta_all
 
 
-def dearmor_gpg_key(key, out):
-    """
-    Write dearmored version of a PEM-encoded gpg key.
-
-    All arguments are paths.
-    """
-
-    # --yes to allow file overwriting
-    subprocess.run(["gpg", "--yes", "-o", out, "--dearmor", key], check=True)
-
-
-def verify_gpg_sig(key, sig, msg):
-    """
-    Verify if gpg signature is correct
-
-    All arguments are paths. The key path should be absolute.
-    The key path has to be to a dearmored key, not a original key from ProofMode.
-
-    True is returned if the signature verified, False if not.
-    """
-
-    proc = subprocess.run(
-        ["gpg", "--no-default-keyring", "--keyring", key, "--verify", sig, msg],
-        stderr=subprocess.DEVNULL,
-    )
-    if proc.returncode == 0:
-        return True
-    if proc.returncode == 1:
-        return False
-    # Some other unexpected return code, means an error has occured
-    proc.check_returncode()
-
-
 def sha256sum(filename):
     with open(filename, "rb") as f:
         bytes = f.read()  # read entire file as bytes
@@ -111,6 +79,9 @@ def sha256sum(filename):
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
+    if not verify.ProofMode().verify(proofmode_path):
+        raise Exception("proofmode zip fails to verify")
+
     data = ""
     result = {}
     date_create = None
@@ -119,29 +90,7 @@ def parse_proofmode_data(proofmode_path):
 
         public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
-        # In dir named after proofmode ZIP
-        this_tmp_dir = os.path.join(
-            TMP_DIR, os.path.basename(os.path.splitext(proofmode_path)[0])
-        )
-        if not os.path.exists(this_tmp_dir):
-            os.mkdir(this_tmp_dir)
-
-        dearmored_key_path = os.path.join(this_tmp_dir, "dearmored_key")
-        proofmode.extract("pubkey.asc", path=this_tmp_dir)
-        dearmor_gpg_key(os.path.join(this_tmp_dir, "pubkey.asc"), dearmored_key_path)
-
         for file in proofmode.namelist():
-            if file.endswith(".asc") and file != "pubkey.asc" and file.count(".") > 1:
-                # It's a signature of a metadata file, not the data (image) sig
-                # Original file filename is in there, ex: proof.csv.asc
-                # Verify signature
-                sig_path = file
-                msg_path = file[:-4]  # Remove .asc
-                sig_path = proofmode.extract(sig_path, path=this_tmp_dir)
-                msg_path = proofmode.extract(msg_path, path=this_tmp_dir)
-                if not verify_gpg_sig(dearmored_key_path, sig_path, msg_path):
-                    raise Exception(f"Signature file {file} failed to verify")
-
             x = proofmode.getinfo(file).date_time
             current_date_create = datetime.datetime(
                 x[0], x[1], x[2], x[3], x[4], x[5], 0
@@ -197,16 +146,6 @@ def parse_proofmode_data(proofmode_path):
                 )
                 result[source_filename] = json_metadata
 
-                # Verify data signature (usually JPEG)
-                data_path = proofmode.extract(source_filename, path=this_tmp_dir)
-                sig_path = proofmode.extract(file_hash + ".asc", path=this_tmp_dir)
-                if not verify_gpg_sig(dearmored_key_path, sig_path, data_path):
-                    raise Exception(
-                        f"Signature for data/image file {source_filename} did not verify: {file_hash + '.asc'}"
-                    )
-
             result["dateCreate"] = date_create.isoformat()
-
-    shutil.rmtree(this_tmp_dir)
 
     return result
