@@ -158,7 +158,7 @@ class watch_folder:
             extras = common.parse_wacz_data_extra(asset_filename)
         if "processProofMode" in self.config and self.config["processProofMode"]:
             logging.info(f"{asset_filename} Processing file as a ProofMode")
-            extras = parse_proofmode_data(asset_filename)
+            extras = common.parse_proofmode_data(asset_filename)
 
         content_meta = generate_metadata_content(
             meta_date_create, asset_filename, meta_uploader_name, extras, meta_method
