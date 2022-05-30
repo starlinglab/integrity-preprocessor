@@ -65,7 +65,7 @@ def get_recorder_meta(type):
                 integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH, "r"
             ) as f:
                 recorder_meta_all = json.load(f)
-                print("Recorder Metadata Change Detected")
+                logging.info("Recorder Metadata Change Detected")
                 metdata_file_timestamp = current_metadata_file_timestamp
     return recorder_meta_all
 
@@ -109,7 +109,7 @@ def sha256sum(filename):
         readable_hash = hashlib.sha256(bytes).hexdigest()
         return readable_hash
 
-def parse_wacz_data(wacz_path):
+def parse_wacz_data_extra(wacz_path):
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
         d = json.loads(wacz.read("datapackage-digest.json"))
@@ -180,11 +180,12 @@ def parse_proofmode_data(proofmode_path):
                 if not verify_gpg_sig(dearmored_key_path, sig_path, msg_path):
                     raise Exception(f"Signature file {file} failed to verify")
 
+            # Extract file creation date from zip 
+            # and create a py datetime opject
             x = proofmode.getinfo(file).date_time
             current_date_create = datetime.datetime(
                 x[0], x[1], x[2], x[3], x[4], x[5], 0
             )
-
             if date_create is None or current_date_create < date_create:
                 date_create = current_date_create
 
@@ -211,6 +212,7 @@ def parse_proofmode_data(proofmode_path):
                         for col_name in row:
                             json_metadata_template[col_name] = ""
                             column_index += 1
+                        # Add dumy Lat/Long in case proof mode does not generate them
                         json_metadata_template["Location.Latitude"] = 0
                         json_metadata_template["Location.Longitude"] = 0
                         json_metadata_template["Location.Time"] = 0

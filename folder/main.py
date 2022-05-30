@@ -24,6 +24,8 @@ import common
 
 dotenv.load_dotenv()
 
+CONFIG_FILE = os.environ.get("CONFIG_FILE")
+
 logging.basicConfig(
     filename=None,
     level=logging.INFO,
@@ -34,7 +36,6 @@ common.logging=logging
 logging.info("Started folder preprocessor")
 
 
-CONFIG_FILE = os.environ.get("CONFIG_FILE")
 
 default_author = {
     "@type": "Organization",
@@ -95,124 +96,6 @@ metdata_file_timestamp = -1
 
 
 
-
-def sha256sum(filename):
-    with open(filename, "rb") as f:
-        bytes = f.read()  # read entire file as bytes
-        readable_hash = hashlib.sha256(bytes).hexdigest()
-        return readable_hash
-
-
-##############################################
-# Turn into a module, shared with browsertrix#
-# ############################################
-def processWacz(wacz_path):
-    # WACZ metadata extraction
-    with ZipFile(wacz_path, "r") as wacz:
-        d = json.loads(wacz.read("datapackage-digest.json"))
-        extras = {}
-
-        if "signedData" in d:
-            # auth sign data
-            if "authsignDomain" in d["signedData"]:
-                extras["authsignSoftware"] = d["signedData"]["software"]
-                extras["authsignDomain"] = d["signedData"]["domain"]
-            elif "publicKey" in d["signedData"]:
-                extras["localsignSoftware"] = d["signedData"]["software"]
-                extras["localsignPublicKey"] = d["signedData"]["publicKey"]
-                extras["localsignSignaturey"] = d["signedData"]["signature"]
-            else:
-                logging.info("WACZ missing signature ")
-
-        d = json.loads(wacz.read("datapackage.json"))
-        extras["waczVersion"] = d["wacz_version"]
-        extras["software"] = d["software"]
-        extras["dateCrawled"] = d["created"]
-
-        if "title" in d:
-            extras["waczTitle"] = d["title"]
-
-        extras["pages"] = {}
-        if "pages/pages.jsonl" in wacz.namelist():
-            with wacz.open("pages/pages.jsonl") as jsonl_file:
-                for line in jsonl_file.readlines():
-                    d = json.loads(line)
-                    if "url" in d:
-                        extras["pages"][d["id"]] = d["url"]
-        else:
-            logging.info("Missing pages/pages.jsonl in archive")
-
-        return extras
-
-
-def parse_proofmode_data(proofmode_path):
-
-    data = ""
-    filename = ""
-    result = {}
-    # ProofMode metadata extraction
-    with ZipFile(proofmode_path, "r") as proofmode:
-
-        for file in proofmode.namelist():
-            if os.path.splitext(file)[1] == ".csv":
-                filename = file
-
-                data_split = data.split("\n")
-
-                current_line = 0
-
-                res = []
-                brokenline = 0
-                for line in data_split:
-                    # Add to arary if its the next line
-                    if len(res) <= current_line:
-                        res.append("")
-                    # Skip over is it is an empty line
-                    if len(line.strip()) < 4:
-                        current_line = current_line - 1
-                    # poorly parsed line here, bring it up one level
-                    elif len(line) < 78:
-                        current_line = current_line - 1
-                        brokenline = 1
-                    # this is the next line after the broken lines, so still broken
-                    elif brokenline == 1:
-                        current_line = current_line - 1
-                        brokenline = 0
-
-                    # Add line to current line (moving broken lines up)
-                    res[current_line] = res[current_line] + line.strip()
-                    current_line = current_line + 1
-
-                heading = None
-                with io.StringIO("\n".join(res), newline="\n") as csvfile:
-                    csv_reader = csv.reader(
-                        csvfile,
-                        delimiter=",",
-                    )
-                    json_metadata_template = {}
-                    json_metadata = {}
-                    for row in csv_reader:
-                        # Read Heading
-                        if heading == None:
-                            column_index = 0
-                            for col_name in row:
-                                json_metadata_template[col_name] = ""
-                                column_index += 1
-                            heading = row
-                        else:
-                            if json_metadata == None:
-                                json_metadata = copy.deepcopy(json_metadata_template)
-                            column_index = 0
-                            for item in row:
-                                if item.strip() != "":
-                                    json_metadata[heading[column_index]] = item
-                                column_index += 1
-
-                source_filename = os.path.basename(json_metadata["File Path"])
-                result[source_filename] = json_metadata
-        return result
-
-
 class watch_folder:
     "Class defining a scan folder"
     event_handler = None
@@ -221,7 +104,7 @@ class watch_folder:
         if os.path.exists(conf["sourcePath"]) == False:
             os.mkdir(conf["sourcePath"])
             os.chown(conf["sourcePath"], 1001, 1001)
-            print("Creating folder " + conf["sourcePath"])
+            logging.info("Creating folder " + conf["sourcePath"])
         os.chown(conf["sourcePath"], 1001, 1001)
         self.path = conf["sourcePath"]
         self.config = conf
@@ -233,11 +116,11 @@ class watch_folder:
         self.observer = Observer()
         self.observer.schedule(self.event_handler, self.path, recursive=False)
         self.observer.start()
-        print("Watching " + self.path + " for " + ",".join(patterns))
+        logging.info("Watching " + self.path + " for " + ",".join(patterns))
 
     def on_created(self, event):
-        print(f"Starting Processing of file {event.src_path}")
-        sha256asset = sha256sum(event.src_path)
+        logging.info(f"Starting Processing of file {event.src_path}")
+        sha256asset = common.sha256sum(event.src_path)
 
         target = self.config["targetPath"]
         extractName = False
@@ -271,10 +154,10 @@ class watch_folder:
 
         extras = {}
         if "processWacz" in self.config and self.config["processWacz"]:
-            print("Processing file as a wacz")
-            extras = processWacz(assetFileName)
+            logging.info("Processing file as a wacz")
+            extras = common.parse_wacz_data_extra(assetFileName)
         if "processProofMode" in self.config and self.config["processProofMode"]:
-            print("Processing file as a ProofMode")
+            logging.info("Processing file as a ProofMode")
             extras = parse_proofmode_data(assetFileName)
 
         content_meta = generate_metadata_content(
@@ -290,11 +173,11 @@ class watch_folder:
             archive.writestr(
                 sha256asset + "-meta-recorder.json", json.dumps(recorder_meta)
             )
-        sha256zip = sha256sum(os.path.join(stagePath, sha256asset + ".zip.part"))
+        sha256zip = common.sha256sum(os.path.join(stagePath, sha256asset + ".zip.part"))
         os.rename(
             bundleFileName + ".part", os.path.join(outputPath, sha256zip + ".zip")
         )
-        print(os.path.join(outputPath, sha256zip + ".zip"))
+        logging.info(os.path.join(outputPath, sha256zip + ".zip"))
 
     def stop(self):
         self.observer.stop()
@@ -312,7 +195,7 @@ try:
     while True:
         time.sleep(1)
 except KeyboardInterrupt:
-    print("Keyboard interrupt received.")
+    logging.info("Keyboard interrupt received.")
 
 for item in scan_folder:
     item.stop()
