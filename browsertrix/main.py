@@ -18,7 +18,7 @@ import hashlib
 import sys
 
 sys.path.append(
-    os.path.dirname(os.path.realpath(__file__)) + "/../integrity_recorder_id"
+    os.path.dirname(os.path.realpath(__file__)) + "/../lib"
 )
 import integrity_recorder_id
 
