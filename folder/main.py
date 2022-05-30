@@ -154,30 +154,21 @@ class watch_folder:
 
         extras = {}
         if "processWacz" in self.config and self.config["processWacz"]:
-            logging.info("Processing file as a wacz")
+            logging.info(f"{assetFileName} Processing file as a wacz")
             extras = common.parse_wacz_data_extra(assetFileName)
         if "processProofMode" in self.config and self.config["processProofMode"]:
-            logging.info("Processing file as a ProofMode")
-            extras = parse_proofmode_data(assetFileName)
+            logging.info(f"{assetFileName} Processing file as a ProofMode")
+            extras = common.parse_proofmode_data(assetFileName)
 
         content_meta = generate_metadata_content(
             meta_date_create, assetFileName, meta_uploader_name, extras, meta_method
         )
         recorder_meta = common.get_recorder_meta("folder")
-        extension = os.path.splitext(assetFileName)[1]
-        with ZipFile(bundleFileName + ".part", "w") as archive:
-            archive.write(assetFileName, os.path.basename(sha256asset + extension))
-            archive.writestr(
-                sha256asset + "-meta-content.json", json.dumps(content_meta)
-            )
-            archive.writestr(
-                sha256asset + "-meta-recorder.json", json.dumps(recorder_meta)
-            )
-        sha256zip = common.sha256sum(os.path.join(stagePath, sha256asset + ".zip.part"))
-        os.rename(
-            bundleFileName + ".part", os.path.join(outputPath, sha256zip + ".zip")
-        )
-        logging.info(os.path.join(outputPath, sha256zip + ".zip"))
+
+        
+        out_file = common.add_to_pipeline(assetFileName, content_meta, recorder_meta, stagePath, outputPath)
+        logging.info(f"{assetFileName} Created new asset {out_file}")
+
 
     def stop(self):
         self.observer.stop()

@@ -125,7 +125,7 @@ def parse_wacz_data_extra(wacz_path):
                 extras["localsignPublicKey"] = d["signedData"]["publicKey"]
                 extras["localsignSignaturey"] = d["signedData"]["signature"]
             else:
-                logging.info("WACZ missing signature ")
+                logging.warning(f"{wacz_path} WACZ missing signature ")
 
         d = json.loads(wacz.read("datapackage.json"))
         extras["waczVersion"] = d["wacz_version"]
