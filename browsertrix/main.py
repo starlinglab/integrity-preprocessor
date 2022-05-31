@@ -308,9 +308,6 @@ while True:
 
         logging.info("Working on archive %s", aid)
 
-
-       
-
         if not aid in data:
             data[aid] = {"last_check": 0, "crawls": []}
 
