@@ -8,23 +8,34 @@
 import base64
 import json
 from zipfile import ZipFile
+import hashlib
 
-import requests
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
+from authsign.verifier import Verifier
+
+
+def hash_stream(hash_type, stream):
+    """Hashes the stream with given hash_type hasher"""
+    try:
+        hasher = hashlib.new(hash_type)
+    except:
+        return 0, ""
+
+    size = 0
+
+    while True:
+        buff = stream.read(32 * 1024)
+        size += len(buff)
+        hasher.update(buff)
+        if not buff:
+            break
+
+    return size, hash_type + ":" + hasher.hexdigest()
 
 
 class Wacz:
-    def __init__(self, verify_url: str) -> None:
-        """
-
-        verify_url is a URL pointing to the authsign /verify endpoint.
-        It is not needed to verify locally-signed WACZs.
-        """
-
-        self.verify_url = verify_url
-
     def name(self) -> str:
         return "wacz"
 
@@ -53,11 +64,19 @@ class Wacz:
             Exception if WACZ is malformed or missing signature
 
         Returns:
-            bool indicating if signature verified or not
+            bool indicating if signature/hash verified or not
         """
 
         with ZipFile(wacz_path, "r") as wacz:
             digest = json.loads(wacz.read("datapackage-digest.json"))
+
+            # Validate hash
+            with wacz.open("datapackage.json", "r") as fh:
+                _, hash = hash_stream("sha256", fh)
+            if hash != digest["hash"] or hash != digest["signedData"]["hash"]:
+                return False
+
+            # Validate signature
             if digest["signedData"].get("publicKey"):
                 # Field exists, assume this is an anonymous signature
 
@@ -78,10 +97,13 @@ class Wacz:
                     return False
             else:
                 # Assume it's a domain signature
-                r = requests.post(self.verify_url, json=digest["signedData"])
-                if r.status_code == 200:
+                # Verify it using authsign package, this is the same as POSTing
+                # to the /verify endpoint of an authsign server
+                # Got code from here:
+                # https://github.com/webrecorder/py-wacz/blob/3177b12e38df43dac8b9031b402d2e2e726c9fc6/wacz/validate.py#L241-L255
+
+                verifier = Verifier()
+                if verifier(digest["signedData"]):
                     return True
-                elif r.status_code == 400:
+                else:
                     return False
-                # Unexpected status code
-                r.raise_for_status()

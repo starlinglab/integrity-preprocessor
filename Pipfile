@@ -11,8 +11,10 @@ python-dotenv = "~=0.20.0"
 pycryptodome = "~=3.14.1"
 # For sig66
 exifread = "~=3.0.0"
+authsign = ">=0.3.1"
 
 [dev-packages]
+pytest = "~=7.1.2"
 
 [requires]
 python_version = "3.9"
