@@ -109,6 +109,10 @@ def ConfigureCrawl(itemID, target_urls, meta_data):
         },
         "extras": {
             "DFRLabMetadata": meta_data_public
+        },
+        "sourceId": {
+            "key": "ts",
+            "value": itemID
         }
     }
    
