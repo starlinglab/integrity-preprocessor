@@ -1,12 +1,9 @@
 import copy
-import sys
 import os
 import json
 import csv
-import shutil
 from zipfile import ZipFile
 import datetime
-import subprocess
 import hashlib
 
 import verify
@@ -71,10 +68,11 @@ def get_recorder_meta(type):
 
 
 def sha256sum(filename):
+    hasher = hashlib.sha256()
     with open(filename, "rb") as f:
-        bytes = f.read()  # read entire file as bytes
-        readable_hash = hashlib.sha256(bytes).hexdigest()
-        return readable_hash
+        for byte_block in iter(lambda: f.read(32 * 1024), b""):
+            hasher.update(byte_block)
+        return hasher.hexdigest()
 
 
 ## Proof mode processing

@@ -93,7 +93,7 @@ class Wacz:
                         h, base64.standard_b64decode(digest["signedData"]["signature"])
                     )
                     return True
-                except ValueError as e:
+                except ValueError:
                     return False
             else:
                 # Assume it's a domain signature

@@ -1,6 +1,4 @@
-folder/.env
-browsertrix/.env
-integrity_recorder_id/.env 
+**/.env
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,linux,windows,visualstudiocode,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,linux,windows,visualstudiocode,macos

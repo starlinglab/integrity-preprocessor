@@ -11,10 +11,19 @@ python-dotenv = "~=0.20.0"
 pycryptodome = "~=3.14.1"
 # For sig66
 exifread = "~=3.0.0"
+# For wacz
 authsign = ">=0.3.1"
+# For http
+aiohttp = "~=3.8.1"
+aiohttp-jwt = "*"
+# For Starling Capture
+eth-account = "==0.6.*"
 
 [dev-packages]
 pytest = "~=7.1.2"
 
 [requires]
 python_version = "3.9"
+
+[scripts]
+http = "python http/main.py"
