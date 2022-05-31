@@ -89,6 +89,8 @@ def parse_proofmode_data(proofmode_path):
         public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
         for file in proofmode.namelist():
+            # Extract file creation date from zip
+            # and create a py datetime opject
             x = proofmode.getinfo(file).date_time
             current_date_create = datetime.datetime(
                 x[0], x[1], x[2], x[3], x[4], x[5], 0
