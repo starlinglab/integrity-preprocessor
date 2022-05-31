@@ -107,7 +107,7 @@ def generate_metadata_content(
     if "private" in meta_additional:
         private.update(meta_additional["private"])
     sourceId = None
-    if sourceId in meta_additional:
+    if "sourceId" in meta_additional:
         sourceId = meta_additional["sourceId"]
 
     private["crawlConfigs"] = meta_crawl_config
