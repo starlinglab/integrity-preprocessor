@@ -1,5 +1,5 @@
 {
-    "injestors": {
+    "ingestors": {
         "slack_archive_bot_workspace-0": {
             "type": "slack",
             "method": "folder",
