@@ -17,9 +17,7 @@ import hashlib
 # Kludge
 import sys
 
-sys.path.append(
-    os.path.dirname(os.path.realpath(__file__)) + "/../lib"
-)
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import common
 
 dotenv.load_dotenv()
@@ -95,11 +93,11 @@ default_content = {
     "author": default_author,
 }
 
+
 def generate_metadata_content(
     meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created
 ):
 
-    
     extras = deepcopy(meta_extra)
     if "extras" in meta_additional:
         extras.update(meta_additional["extras"])
@@ -137,7 +135,7 @@ def generate_metadata_content(
     meta_content["dateCreated"] = meta_date_created
     meta_content["extras"] = extras
     meta_content["private"] = private
-    if (sourceId):
+    if sourceId:
         meta_content["sourceId"] = sourceId
     meta_content["timestamp"] = datetime.utcnow().isoformat() + "Z"
 
@@ -176,21 +174,6 @@ metrics.update(
     }
 )
 
-
-def log_req_err(r, tries):
-    path = r.url[len(BROWSERTRIX_URL) :]
-    logging.error(
-        f"{r.request.method} {path} failed with status code {r.status_code} (tries: {tries}):\n{r.text}"
-    )
-    del metrics["request_errors"]  # Prometheus will see this as the same so remove it
-    metrics['request_errors{status_code="' + str(r.status_code) + '"}'] += 1
-
-
-def log_req_success(r, tries):
-    path = r.url[len(BROWSERTRIX_URL) :]
-    logging.info(f"{r.request.method} {path} succeeded (tries: {tries})")
-
-
 access_token = None
 access_token_exp = 0
 
@@ -206,18 +189,12 @@ def get_access_token():
     # New access token needed, get it by logging in
 
     i = 1
-    while True:
-        r = requests.post(
-            f"{BROWSERTRIX_URL}/api/auth/jwt/login",
-            data={"username": USERNAME, "password": PASSWORD},
-        )
-        if r.status_code != 200:
-            log_req_err(r, i)
-            i += 1
-            time.sleep(FAIL_DELAY)
-            continue
-        log_req_success(r, i)
-        break
+    r = requests.post(
+        f"{BROWSERTRIX_URL}/api/auth/jwt/login",
+        data={"username": USERNAME, "password": PASSWORD},
+    )
+    if r.status_code != 200:
+        raise Exception(f"PATCH of {aid}/crawlconfigs Faild")
 
     access_token = r.json()["access_token"]
     access_token_exp = json.loads(
@@ -237,28 +214,24 @@ def write_data(d):
 
 def update_crawl_config(cid, aid, data):
     i = 0
-    while True:
-        r = requests.patch(
-            f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}",
-            headers=headers(),
-            json=data,
-        )
-        if r.status_code != 200:
-            raise Exception(f"PATCH of {aid}/crawlconfigs Faild")
-       break
+    r = requests.patch(
+        f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}",
+        headers=headers(),
+        json=data,
+    )
+    if r.status_code != 200:
+        raise Exception(f"PATCH of {aid}/crawlconfigs Faild")
     return r.json()
 
 
 def get_crawl_config(cid, aid):
     i = 0
-    while True:
-        r = requests.get(
-            f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}",
-            headers=headers(),
-        )
-        if r.status_code != 200:
-            raise Exception(f"GET of {aid}/crawlconfigs Faild")
-        break
+    r = requests.get(
+        f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}",
+        headers=headers(),
+    )
+    if r.status_code != 200:
+        raise Exception(f"GET of {aid}/crawlconfigs Faild")
     return r.json()
 
 
@@ -287,15 +260,10 @@ send_to_prometheus(metrics)
 while True:
 
     i = 1
-    while True:
-        r = requests.get(f"{BROWSERTRIX_URL}/api/archives", headers=headers())
-        if r.status_code != 200:
-            log_req_err(r, i)
-            i += 1
-            time.sleep(FAIL_DELAY)
-            continue
-        log_req_success(r, i)
-        break
+
+    r = requests.get(f"{BROWSERTRIX_URL}/api/archives", headers=headers())
+    if r.status_code != 200:
+        raise Exception(f"GET of /api/archives failed")
 
     crawl_running_count = 0
 
@@ -318,11 +286,10 @@ while True:
         i = 1
         r = requests.get(
             f"{BROWSERTRIX_URL}/api/archives/{aid}/crawls", headers=headers()
-        )        
+        )
         if r.status_code != 200:
             raise Exception(f"GET of /api/archives/{aid}/crawls failed")
         crawls = r.json()["crawls"]
-
 
         # Count the number of currently running crawls
         for crawl in crawls:
@@ -372,8 +339,9 @@ while True:
                 headers=headers(),
             )
             if r.status_code != 200:
-                raise Exception(f"GET of /api/archives/{aid}/crawls/{crawl['id']}.json Failed")
-
+                raise Exception(
+                    f"GET of /api/archives/{aid}/crawls/{crawl['id']}.json Failed"
+                )
 
             crawl_json = r.json()
 
@@ -405,7 +373,7 @@ while True:
                 time.sleep(FAIL_DELAY)
 
             # Meta data collection and generation
-            recorder_meta = common.get_recorder_meta("browsertrix")            
+            recorder_meta = common.get_recorder_meta("browsertrix")
 
             meta_additional = ""
             meta_crawl = ""
@@ -438,9 +406,14 @@ while True:
 
             i = 1
 
-            out_file = common.add_to_pipeline(wacz_path, content_meta, recorder_meta, TARGET_PATH_TMP[current_collection], TARGET_PATH[current_collection])
+            out_file = common.add_to_pipeline(
+                wacz_path,
+                content_meta,
+                recorder_meta,
+                TARGET_PATH_TMP[current_collection],
+                TARGET_PATH[current_collection],
+            )
             sha256zip = os.path.splitext(os.path.basename(out_file))[0]
-          
 
             # Write the ID to a file for refrence
             if os.path.exists(meta_additional_filename):
@@ -464,22 +437,20 @@ while True:
 
     # Process crawl queue
     i = 1
-    while True:
-        r = requests.get(f"{BROWSERTRIX_URL}/api/archives", headers=headers())
-        if r.status_code != 200:
-            raise Exception(f"GET of api/archives Failed")
-        break
+
+    r = requests.get(f"{BROWSERTRIX_URL}/api/archives", headers=headers())
+    if r.status_code != 200:
+        raise Exception(f"GET of api/archives Failed")
 
     queuelist = []
     for archive in r.json()["archives"]:
-        while True:
-            aid = archive["id"]
-            r = requests.get(
-                f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs", headers=headers()
-            )
-            if r.status_code != 200:
-                raise Exception(f"GET of {aid}/crawlconfigs Failed")
-            break
+
+        aid = archive["id"]
+        r = requests.get(
+            f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs", headers=headers()
+        )
+        if r.status_code != 200:
+            raise Exception(f"GET of {aid}/crawlconfigs Failed")
 
         # Check if crawl is to be queued and add it to array
         for crawl_config in r.json()["crawlConfigs"]:
