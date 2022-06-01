@@ -7,6 +7,7 @@ import netifaces
 import ipaddress
 import socket
 
+
 def dockerComposeHash(repoPath):
     os.chdir(repoPath)
 
@@ -47,14 +48,14 @@ def gitHash(repoPath):
     git_status = getoutput("git status --porcelain")
 
     if git_status == "":
-         git_clean = True
+        git_clean = True
     else:
         git_clean = False
-    
+
     git_repository = getoutput("git remote get-url origin")
     # Sanitize password if any
     if "@" in git_repository and "https" in git_repository:
-        git_repository = "https://" + git_repository.split("@",2)[1]        
+        git_repository = "https://" + git_repository.split("@", 2)[1]
 
     gitHash = {
         "type": "git",
@@ -90,43 +91,31 @@ def build_recorder_id_json():
 
     # Record ip addreses
 
-    net = []    
+    net = []
 
     for interface in netifaces.interfaces():
 
-        if netifaces.AF_INET in  netifaces.ifaddresses(interface):
+        if netifaces.AF_INET in netifaces.ifaddresses(interface):
             for link in netifaces.ifaddresses(interface)[netifaces.AF_INET]:
-                if not ipaddress.ip_address(link['addr']).is_private:
+                if not ipaddress.ip_address(link["addr"]).is_private:
                     item = {
                         "type": "ip",
-                        "values": {
-                            "if": interface,
-                            "address": link['addr'] 
-                        }
+                        "values": {"if": interface, "address": link["addr"]},
                     }
                     net.append(item)
-        if netifaces.AF_INET6 in  netifaces.ifaddresses(interface):
+        if netifaces.AF_INET6 in netifaces.ifaddresses(interface):
             for link in netifaces.ifaddresses(interface)[netifaces.AF_INET6]:
-                if not ipaddress.ip_address(link['addr']).is_private:
+                if not ipaddress.ip_address(link["addr"]).is_private:
                     item = {
                         "type": "ip",
-                        "values": {
-                            "if": interface,
-                            "address": link['addr'] 
-                        }
+                        "values": {"if": interface, "address": link["addr"]},
                     }
-                    net.append(item)       
-    recorder = {
-        "host": socket.getfqdn(), 
-        "info": net
-    }
+                    net.append(item)
+    recorder = {"host": socket.getfqdn(), "info": net}
     integrity["recorderMetadata"].append(recorder)
 
-    
-
-
     # +Z becuase python doesnt support Z like Javascript Does
-    integrity['timestamp']=datetime.datetime.utcnow().isoformat() + "Z"     
+    integrity["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
     with open(INTEGRITY_PREPROCESSOR_TARGET_PATH, "w") as outfile:
         json.dump(integrity, outfile, indent=4)
 
