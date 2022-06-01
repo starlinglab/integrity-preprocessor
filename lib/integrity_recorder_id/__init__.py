@@ -3,6 +3,8 @@ import json
 from subprocess import getoutput
 import dotenv
 import datetime
+import netifaces
+import ipaddress
 
 
 def dockerComposeHash(repoPath):
@@ -85,6 +87,34 @@ def build_recorder_id_json():
             recorder["info"].append(gitHash(recorder_config["path"]))
 
         integrity["recorderMetadata"].append(recorder)
+
+    # Record ip addreses
+
+    net = []    
+
+    for interface in netifaces.interfaces():
+
+        if netifaces.AF_INET in  netifaces.ifaddresses(interface):
+            for link in netifaces.ifaddresses(interface)[netifaces.AF_INET]:
+                if not ipaddress.ip_address(link['addr']).is_private:
+                    item = {
+                        "if": interface,
+                        "address": link['addr']
+                    }
+                    net.append(item)
+        if netifaces.AF_INET6 in  netifaces.ifaddresses(interface):
+            for link in netifaces.ifaddresses(interface)[netifaces.AF_INET6]:
+                if not ipaddress.ip_address(link['addr']).is_private:
+                    item = {
+                        "if": interface,
+                        "address": link['addr']
+                    }
+                    net.append(item)
+        
+    recorder = {"service": "host", "info": net}
+    integrity["recorderMetadata"].append(recorder)
+    
+
 
     # +Z becuase python doesnt support Z like Javascript Does
     integrity['timestamp']=datetime.datetime.utcnow().isoformat() + "Z"     
