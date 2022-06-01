@@ -5,6 +5,7 @@ import csv
 from zipfile import ZipFile
 import datetime
 import hashlib
+import logging
 
 import verify
 import integrity_recorder_id
@@ -19,6 +20,12 @@ TMP_DIR = "/tmp/integrity-preprocessor/common"
 
 os.makedirs(TMP_DIR, exist_ok=True)
 
+logging.basicConfig(
+    filename=None,
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output_path):
 
@@ -62,7 +69,7 @@ def get_recorder_meta(type):
                 integrity_recorder_id.INTEGRITY_PREPROCESSOR_TARGET_PATH, "r"
             ) as f:
                 recorder_meta_all = json.load(f)
-                print("Recorder Metadata Change Detected")
+                logging.info("Recorder Metadata Change Detected")
                 metdata_file_timestamp = current_metadata_file_timestamp
     return recorder_meta_all
 
@@ -74,6 +81,43 @@ def sha256sum(filename):
             hasher.update(byte_block)
         return hasher.hexdigest()
 
+def parse_wacz_data_extra(wacz_path):
+    # WACZ metadata extraction
+    with ZipFile(wacz_path, "r") as wacz:
+        d = json.loads(wacz.read("datapackage-digest.json"))
+        extras = {}
+
+        if "signedData" in d:
+            # auth sign data
+            if "authsignDomain" in d["signedData"]:
+                extras["authsignSoftware"] = d["signedData"]["software"]
+                extras["authsignDomain"] = d["signedData"]["domain"]
+            elif "publicKey" in d["signedData"]:
+                extras["localsignSoftware"] = d["signedData"]["software"]
+                extras["localsignPublicKey"] = d["signedData"]["publicKey"]
+                extras["localsignSignaturey"] = d["signedData"]["signature"]
+            else:
+                logging.warning(f"{wacz_path} WACZ missing signature ")
+
+        d = json.loads(wacz.read("datapackage.json"))
+        extras["waczVersion"] = d["wacz_version"]
+        extras["software"] = d["software"]
+        extras["dateCrawled"] = d["created"]
+
+        if "title" in d:
+            extras["waczTitle"] = d["title"]
+
+        extras["pages"] = {}
+        if "pages/pages.jsonl" in wacz.namelist():
+            with wacz.open("pages/pages.jsonl") as jsonl_file:
+                for line in jsonl_file.readlines():
+                    d = json.loads(line)
+                    if "url" in d:
+                        extras["pages"][d["id"]] = d["url"]
+        else:
+            logging.info("Missing pages/pages.jsonl in archive %s", wacz_path)
+
+        return extras
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
@@ -95,7 +139,6 @@ def parse_proofmode_data(proofmode_path):
             current_date_create = datetime.datetime(
                 x[0], x[1], x[2], x[3], x[4], x[5], 0
             )
-
             if date_create is None or current_date_create < date_create:
                 date_create = current_date_create
 
@@ -122,6 +165,7 @@ def parse_proofmode_data(proofmode_path):
                         for col_name in row:
                             json_metadata_template[col_name] = ""
                             column_index += 1
+                        # Add dumy Lat/Long in case proof mode does not generate them
                         json_metadata_template["Location.Latitude"] = 0
                         json_metadata_template["Location.Longitude"] = 0
                         json_metadata_template["Location.Time"] = 0
