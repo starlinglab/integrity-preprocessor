@@ -48,7 +48,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-logging.info("Started browsertrix preprocessor")
+logging = common.logging
 
 # Load config
 config_data = {}
@@ -245,6 +245,7 @@ def update_crawl_config(cid, aid, data):
         )
         if r.status_code != 200:
             raise Exception(f"PATCH of {aid}/crawlconfigs Faild")
+       break
     return r.json()
 
 
