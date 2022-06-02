@@ -225,6 +225,7 @@ async def create(request):
             zipf.write(asset_path, asset_hash + os.path.splitext(asset_path)[1])
 
         # Move zip to input dir, named as the hash of itself
+
         final_dir = os.path.join(
             OUTPUT_PATH,
             jwt["organization_id"],
@@ -232,14 +233,20 @@ async def create(request):
         )
         if DEBUG:
             os.makedirs(final_dir, exist_ok=True)
-        shutil.copy2(
+
+        # Copy as .part then rename
+        zip_part_path = shutil.copy2(
             tmp_zip_path,
             os.path.join(
                 final_dir,
                 sha256sum(tmp_zip_path),
             )
-            + ".zip",
+            + ".zip.part",
         )
+        os.rename(zip_part_path, os.path.splitext(zip_part_path)[0] + ".zip")
+
+        # Move tmp zip to archive
+        os.rename(tmp_zip_path, os.path.join(ARCHIVE_PATH, asset_hash) + ".zip")
 
     return web.json_response(response, status=response.get("status_code"))
 
