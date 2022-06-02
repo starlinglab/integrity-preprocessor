@@ -121,14 +121,25 @@ class Wacz:
                     base64.standard_b64decode(digest["signedData"]["publicKey"])
                 )
                 h = SHA256.new(digest["signedData"]["hash"].encode())
-                verifier = DSS.new(key, "fips-186-3", encoding="binary")
+                verifier = DSS.new(key, "fips-186-3", encoding="der")
                 try:
                     verifier.verify(
                         h, base64.standard_b64decode(digest["signedData"]["signature"])
                     )
                     return True
                 except ValueError:
-                    return False
+                    # Try interpreting sig as binary instead, this was the old way
+                    verifier = DSS.new(key, "fips-186-3", encoding="binary")
+                    try:
+                        verifier.verify(
+                            h,
+                            base64.standard_b64decode(
+                                digest["signedData"]["signature"]
+                            ),
+                        )
+                        return True
+                    except ValueError:
+                        return False
             else:
                 # Assume it's a domain signature
                 # Verify it using authsign package, this is the same as POSTing
