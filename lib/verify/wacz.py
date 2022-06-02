@@ -14,6 +14,8 @@ from Crypto.Hash import SHA256
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from authsign.verifier import Verifier
+from wacz.validate import Validation, OUTDATED_WACZ
+from wacz.util import WACZ_VERSION
 
 
 def hash_stream(hash_type, stream):
@@ -55,7 +57,7 @@ class Wacz:
 
     def verify(self, wacz_path: str) -> bool:
         """
-        Verifies a WACZ file
+        Verifies a WACZ file.
 
         Args:
             wacz_path: path to .wacz file
@@ -64,8 +66,40 @@ class Wacz:
             Exception if WACZ is malformed or missing signature
 
         Returns:
-            bool indicating if signature/hash verified or not
+            bool indicating if WACZ verified or not
         """
+
+        # First verify everything but the signature
+        # Valid indexes, valid compression, etc
+        # This code is adapted from:
+        # https://github.com/webrecorder/py-wacz/blob/3177b12e38df43dac8b9031b402d2e2e726c9fc6/wacz/main.py#L117
+
+        validate = Validation(wacz_path)
+        version = validate.version
+        validation_tests = []
+
+        if version == OUTDATED_WACZ:
+            return False
+        elif version == WACZ_VERSION:
+            validation_tests += [
+                validate.check_required_contents,
+                validate.frictionless_validate,
+                validate.check_file_paths,
+                validate.check_file_hashes,
+            ]
+        else:
+            return False
+
+        for func in validation_tests:
+            success = func()
+            if success is False:
+                return False
+
+        # All validation steps succeeded
+
+        # Next, verify the hashes and signature
+        # This is done by myself here, because the wacz package does not support
+        # anonymous signatures.
 
         with ZipFile(wacz_path, "r") as wacz:
             digest = json.loads(wacz.read("datapackage-digest.json"))
