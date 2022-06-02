@@ -1,3 +1,6 @@
+import hashlib
+
+
 def sha256sum(filename):
     hasher = hashlib.sha256()
     with open(filename, "rb") as f:

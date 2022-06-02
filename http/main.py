@@ -19,14 +19,19 @@ from aiohttp import web
 from aiohttp_jwt import JWTMiddleware
 import dotenv
 
+DEBUG = os.environ.get("HTTP_DEBUG") == "1"
+
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import verify
-import integrity_recorder_id
+
+if not DEBUG:
+    import integrity_recorder_id
 
 sha256sum = verify.sha256sum
 sc = verify.StarlingCapture()
 
-integrity_recorder_id.build_recorder_id_json()
+if not DEBUG:
+    integrity_recorder_id.build_recorder_id_json()
 
 dotenv.load_dotenv()
 
@@ -65,6 +70,9 @@ global_meta_recorder = None
 
 def get_meta_recorder() -> dict:
     global global_meta_recorder
+
+    if DEBUG:
+        return {}
 
     if global_meta_recorder is not None:
         return global_meta_recorder
@@ -212,17 +220,22 @@ async def create(request):
 
         # Create zip
         with zipfile.ZipFile(tmp_zip_path, "w") as zipf:
-            zipf.writestr(f"{asset_hash}-meta-content.json", meta_content)
-            zipf.writestr(f"{asset_hash}-meta-recorder.json", meta_recorder)
-            zipf.write(asset_hash + os.path.splitext(asset_path)[1])
+            zipf.writestr(f"{asset_hash}-meta-content.json", json.dumps(meta_content))
+            zipf.writestr(f"{asset_hash}-meta-recorder.json", json.dumps(meta_recorder))
+            zipf.write(asset_path, asset_hash + os.path.splitext(asset_path)[1])
 
         # Move zip to input dir, named as the hash of itself
+        final_dir = os.path.join(
+            OUTPUT_PATH,
+            jwt["organization_id"],
+            jwt["collection_id"],
+        )
+        if DEBUG:
+            os.makedirs(final_dir, exist_ok=True)
         shutil.copy2(
             tmp_zip_path,
             os.path.join(
-                OUTPUT_PATH,
-                jwt["organization_id"],
-                jwt["collection_id"],
+                final_dir,
                 sha256sum(tmp_zip_path),
             )
             + ".zip",
