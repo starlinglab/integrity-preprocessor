@@ -7,7 +7,7 @@ import datetime
 import hashlib
 import logging
 
-import verify
+import validate
 import integrity_recorder_id
 
 integrity_recorder_id.build_recorder_id_json()
@@ -26,6 +26,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+
 
 def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output_path):
 
@@ -81,6 +82,7 @@ def sha256sum(filename):
             hasher.update(byte_block)
         return hasher.hexdigest()
 
+
 def parse_wacz_data_extra(wacz_path):
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
@@ -119,10 +121,11 @@ def parse_wacz_data_extra(wacz_path):
 
         return extras
 
+
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
-    if not verify.ProofMode().verify(proofmode_path):
-        raise Exception("proofmode zip fails to verify")
+    if not validate.ProofMode().validate(proofmode_path):
+        raise Exception("proofmode zip fails to validate")
 
     data = ""
     result = {}

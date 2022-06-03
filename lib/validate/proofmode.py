@@ -13,7 +13,7 @@ class ProofMode:
     def name(self) -> str:
         return "proofmode"
 
-    def verify(self, zip_path: str) -> bool:
+    def validate(self, zip_path: str) -> bool:
         # Use tmp dir named after this ZIP
         this_tmp_dir = os.path.join(
             self.tmp_dir, os.path.basename(os.path.splitext(zip_path)[0])
@@ -37,12 +37,14 @@ class ProofMode:
                 ):
                     # It's a signature of a metadata file, not the data (image) sig
                     # Original file filename is in there, ex: proof.csv.asc
-                    # Verify signature
+                    # Validate signature
                     sig_path = file
                     msg_path = file[:-4]  # Remove .asc
                     sig_path = zipf.extract(sig_path, path=this_tmp_dir)
                     msg_path = zipf.extract(msg_path, path=this_tmp_dir)
-                    if not self._verify_gpg_sig(dearmored_key_path, sig_path, msg_path):
+                    if not self._validate_gpg_sig(
+                        dearmored_key_path, sig_path, msg_path
+                    ):
                         shutil.rmtree(this_tmp_dir)
                         return False
 
@@ -57,10 +59,10 @@ class ProofMode:
                     file_hash = row[0]
                     file_name = os.path.basename(row[-3])
 
-                    # Verify data signature
+                    # Validate data signature
                     data_path = zipf.extract(file_name, path=this_tmp_dir)
                     sig_path = zipf.extract(file_hash + ".asc", path=this_tmp_dir)
-                    if not self._verify_gpg_sig(
+                    if not self._validate_gpg_sig(
                         dearmored_key_path, sig_path, data_path
                     ):
                         shutil.rmtree(this_tmp_dir)
@@ -79,7 +81,7 @@ class ProofMode:
         # --yes to allow file overwriting
         subprocess.run(["gpg", "--yes", "-o", out, "--dearmor", key], check=True)
 
-    def _verify_gpg_sig(self, key, sig, msg):
+    def _validate_gpg_sig(self, key, sig, msg):
         """
         Verify if gpg signature is correct
 

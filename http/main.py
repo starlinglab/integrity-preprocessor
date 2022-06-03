@@ -22,13 +22,13 @@ import dotenv
 DEBUG = os.environ.get("HTTP_DEBUG") == "1"
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
-import verify
+import validate
 
 if not DEBUG:
     import integrity_recorder_id
 
-sha256sum = verify.sha256sum
-sc = verify.StarlingCapture()
+sha256sum = validate.sha256sum
+sc = validate.StarlingCapture()
 
 if not DEBUG:
     integrity_recorder_id.build_recorder_id_json()
@@ -209,10 +209,10 @@ async def create(request):
         sigs = data["signature"]
         asset_path = data["asset_fullpath"]
 
-        # Verify the data
-        if not sc._verify_create_hashes(asset_path, meta, sigs):
+        # Validate the data
+        if not sc._validate_create_hashes(asset_path, meta, sigs):
             raise Exception("Hashes did not match actual asset hash")
-        if not sc._verify_all_sigs(meta_raw, sigs):
+        if not sc._validate_all_sigs(meta_raw, sigs):
             raise Exception("Not all signatures verified")
 
         asset_hash = sha256sum(asset_path)
@@ -243,7 +243,14 @@ async def create(request):
             )
             + ".zip.part",
         )
-        os.rename(zip_part_path, os.path.splitext(zip_part_path)[0] + ".zip")
+        os.rename(
+            zip_part_path,
+            os.path.join(
+                final_dir,
+                sha256sum(tmp_zip_path),
+            )
+            + ".zip",
+        )
 
         # Move tmp zip to archive
         os.rename(tmp_zip_path, os.path.join(ARCHIVE_PATH, asset_hash) + ".zip")

@@ -55,9 +55,9 @@ class Wacz:
                 .get("publicKey", "")
             )
 
-    def verify(self, wacz_path: str) -> bool:
+    def validate(self, wacz_path: str) -> bool:
         """
-        Verifies a WACZ file.
+        Validates a WACZ file.
 
         Args:
             wacz_path: path to .wacz file
@@ -66,7 +66,7 @@ class Wacz:
             Exception if WACZ is malformed or missing signature
 
         Returns:
-            bool indicating if WACZ verified or not
+            bool indicating if WACZ validated or not
         """
 
         # First verify everything but the signature

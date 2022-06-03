@@ -29,9 +29,9 @@ class Sig66:
     def name(self) -> str:
         return "sig66"
 
-    def verify(self, jpeg_path: str, key_path: str) -> bool:
+    def validate(self, jpeg_path: str, key_path: str) -> bool:
         """
-        Verifies the signature of a "sig66" JPEG file.
+        Validates the signature of a "sig66" JPEG file.
 
         Args:
             jpeg_path: path to JPEG file
