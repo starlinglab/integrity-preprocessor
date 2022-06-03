@@ -124,7 +124,7 @@ def parse_wacz_data_extra(wacz_path):
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
-    if not validate.ProofMode().validate(proofmode_path):
+    if not validate.ProofMode(proofmode_path).validate():
         raise Exception("proofmode zip fails to validate")
 
     data = ""

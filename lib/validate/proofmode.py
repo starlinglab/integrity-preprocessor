@@ -4,30 +4,46 @@ from zipfile import ZipFile
 import csv
 import shutil
 
+from .common import Validate, read_file, sha256sum
 
-class ProofMode:
-    def __init__(self, tmp_dir="/tmp/integrity-preprocessor/proofmode"):
-        self.tmp_dir = tmp_dir
+
+class ProofMode(Validate):
+
+    algorithm = "proofmode-pgp-rsa"
+    auth_msg_desc = "SHA256 hash of the signed file"
+
+    def __init__(
+        self,
+        zip_path: str,
+        tmp_dir: str = "/tmp/integrity-preprocessor/proofmode",
+        *args,
+        **kwargs
+    ) -> None:
+        self.zip_path = zip_path
+        # Use tmp dir named after this ZIP
+        self.tmp_dir = os.path.join(
+            tmp_dir, os.path.basename(os.path.splitext(self.zip_path)[0])
+        )
         os.makedirs(self.tmp_dir, exist_ok=True)
+
+        # JSON
+        self.provider = None
+        self.public_key = None
+        self.files = {}
 
     def name(self) -> str:
         return "proofmode"
 
-    def validate(self, zip_path: str) -> bool:
-        # Use tmp dir named after this ZIP
-        this_tmp_dir = os.path.join(
-            self.tmp_dir, os.path.basename(os.path.splitext(zip_path)[0])
-        )
-        if not os.path.exists(this_tmp_dir):
-            os.mkdir(this_tmp_dir)
-
-        with ZipFile(zip_path, "r") as zipf:
+    def validate(self) -> bool:
+        with ZipFile(self.zip_path, "r") as zipf:
             # Get dearmored key
-            dearmored_key_path = os.path.join(this_tmp_dir, "dearmored_key")
-            zipf.extract("pubkey.asc", path=this_tmp_dir)
+            dearmored_key_path = os.path.join(self.tmp_dir, "dearmored_key")
+            zipf.extract("pubkey.asc", path=self.tmp_dir)
             self._dearmor_gpg_key(
-                os.path.join(this_tmp_dir, "pubkey.asc"), dearmored_key_path
+                os.path.join(self.tmp_dir, "pubkey.asc"), dearmored_key_path
             )
+
+            self.public_key = read_file(os.path.join(self.tmp_dir, "pubkey.asc"))
 
             for file in zipf.namelist():
                 if (
@@ -40,13 +56,19 @@ class ProofMode:
                     # Validate signature
                     sig_path = file
                     msg_path = file[:-4]  # Remove .asc
-                    sig_path = zipf.extract(sig_path, path=this_tmp_dir)
-                    msg_path = zipf.extract(msg_path, path=this_tmp_dir)
+                    sig_path = zipf.extract(sig_path, path=self.tmp_dir)
+                    msg_path = zipf.extract(msg_path, path=self.tmp_dir)
                     if not self._validate_gpg_sig(
                         dearmored_key_path, sig_path, msg_path
                     ):
-                        shutil.rmtree(this_tmp_dir)
+                        shutil.rmtree(self.tmp_dir)
                         return False
+                    # It validated, add it to the data
+                    self.files[os.path.basename(msg_path)] = {
+                        "signature": read_file(sig_path),
+                        "authenticatedMessage": sha256sum(msg_path),
+                        "authenticatedMessageDescription": self.auth_msg_desc,
+                    }
 
                 if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
                     # It's a CSV with metadata - use it to verify the data file
@@ -57,19 +79,38 @@ class ProofMode:
                     next(csv_reader)  # Skip header row
                     row = next(csv_reader)
                     file_hash = row[0]
-                    file_name = os.path.basename(row[-3])
+                    file_name = os.path.basename(row[27])
+                    self.provider = row[16]
 
                     # Validate data signature
-                    data_path = zipf.extract(file_name, path=this_tmp_dir)
-                    sig_path = zipf.extract(file_hash + ".asc", path=this_tmp_dir)
+                    data_path = zipf.extract(file_name, path=self.tmp_dir)
+                    sig_path = zipf.extract(file_hash + ".asc", path=self.tmp_dir)
                     if not self._validate_gpg_sig(
                         dearmored_key_path, sig_path, data_path
                     ):
-                        shutil.rmtree(this_tmp_dir)
+                        shutil.rmtree(self.tmp_dir)
                         return False
 
-        shutil.rmtree(this_tmp_dir)
+                    # It validated, add it to the data
+                    self.files[file_name] = {
+                        "signature": read_file(sig_path),
+                        "authenticatedMessage": sha256sum(data_path),
+                        "authenticatedMessageDescription": self.auth_msg_desc,
+                    }
+
+        shutil.rmtree(self.tmp_dir)
         return True
+
+    def validated_sigs_json(self, short=False) -> list:
+        j = [
+            {
+                "provider": self.provider,
+                "algorithm": self.algorithm,
+                "publicKey": self.public_key,
+                "custom": self.files,
+            }
+        ]
+        return self._shorten(j) if short else j
 
     def _dearmor_gpg_key(self, key, out):
         """

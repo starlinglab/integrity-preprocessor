@@ -2,7 +2,7 @@ from .proofmode import ProofMode
 from .sig66 import Sig66, Sig66VerificationException
 from .wacz import Wacz
 from .starling_capture import StarlingCapture
-from .common import sha256sum
+from .common import sha256sum, Validate
 
 __all__ = [
     "ProofMode",
@@ -11,4 +11,5 @@ __all__ = [
     "Wacz",
     "StarlingCapture",
     "sha256sum",
+    "Validate",
 ]

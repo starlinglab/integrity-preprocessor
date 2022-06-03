@@ -13,6 +13,7 @@
 # This file was taken from a defunct integrity-backend PR
 # https://github.com/starlinglab/integrity-backend/pull/102
 
+import base64
 import hashlib
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import ECC
@@ -20,22 +21,35 @@ from Crypto.Signature import DSS
 import exifread
 import exifread.jpeg
 
+from .common import Validate, read_file
+
 
 class Sig66VerificationException(Exception):
     pass
 
 
-class Sig66:
+class Sig66(Validate):
+
+    algorithm = "sig66-ecdsa"
+    auth_msg_desc = (
+        "SHA256 hash of image data concatenated with SHA256 hash of metadata"
+    )
+
+    def __init__(self, jpeg_path: str, key_path: str, *args, **kwargs) -> None:
+        self.jpeg_path = jpeg_path
+        self.key_path = key_path
+        # JSON
+        self.provider = "sig66"
+        self.public_key = read_file(key_path)
+        self.sig = None
+        self.auth_msg = None
+
     def name(self) -> str:
         return "sig66"
 
-    def validate(self, jpeg_path: str, key_path: str) -> bool:
+    def validate(self) -> bool:
         """
         Validates the signature of a "sig66" JPEG file.
-
-        Args:
-            jpeg_path: path to JPEG file
-            key_path: path to PEM-encoded ECC key file
 
         Raises:
             Sig66VerificationException if the image is invalid or couldn't be parsed
@@ -46,7 +60,7 @@ class Sig66:
         """
 
         # Image file
-        file = open(jpeg_path, "rb")
+        file = open(self.jpeg_path, "rb")
 
         data = file.read(12)
 
@@ -169,17 +183,19 @@ class Sig66:
 
         # Signature is at the end of the file, immediately following FFD9
         signature = file_bytes[image_data_end + 2 :]
+        self.sig = base64.standard_b64encode(signature).decode()
 
         ### Hash and verify ###
 
         metadata_hash = hashlib.sha256(metadata).digest()
         image_hash = hashlib.sha256(image_data).digest()
         combination_hash = image_hash + metadata_hash
+        self.auth_msg = combination_hash.hex()
 
         # Adapted from signature verification example
         # https://www.pycryptodome.org/en/latest/src/signature/dsa.html
 
-        with open(key_path, "rb") as f:
+        with open(self.key_path, "rb") as f:
             key = ECC.import_key(f.read())
         h = SHA256.new(combination_hash)
         verifier = DSS.new(key, "fips-186-3", encoding="der")
@@ -188,3 +204,16 @@ class Sig66:
             return True
         except ValueError:
             return False
+
+    def validated_sigs_json(self, short=False) -> list:
+        j = [
+            {
+                "provider": self.provider,
+                "algorithm": self.algorithm,
+                "publicKey": self.public_key,
+                "signature": self.sig,
+                "authenticatedMessage": self.auth_msg,
+                "authenticatedMessageDescription": self.auth_msg_desc,
+            }
+        ]
+        return self._shorten(j) if short else j

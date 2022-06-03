@@ -28,7 +28,6 @@ if not DEBUG:
     import integrity_recorder_id
 
 sha256sum = validate.sha256sum
-sc = validate.StarlingCapture()
 
 if not DEBUG:
     integrity_recorder_id.build_recorder_id_json()
@@ -210,10 +209,9 @@ async def create(request):
         asset_path = data["asset_fullpath"]
 
         # Validate the data
-        if not sc._validate_create_hashes(asset_path, meta, sigs):
-            raise Exception("Hashes did not match actual asset hash")
-        if not sc._validate_all_sigs(meta_raw, sigs):
-            raise Exception("Not all signatures verified")
+        sc = validate.StarlingCapture(asset_path, meta_raw, sigs)
+        if not sc.validate():
+            raise Exception("Hashes or signatures did not validate")
 
         asset_hash = sha256sum(asset_path)
         tmp_zip_path = os.path.join(LOCAL_PATH, asset_hash) + ".zip"

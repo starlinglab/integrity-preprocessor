@@ -1,6 +1,7 @@
+from hashlib import sha256
 import json
 
-from .common import sha256sum
+from .common import sha256sum, Validate
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import ECC
@@ -10,17 +11,35 @@ from eth_account.messages import encode_defunct
 from eth_keys.datatypes import PublicKey
 
 
-class StarlingCapture:
-    def name() -> str:
-        return "starling-capture"
+class StarlingCapture(Validate):
 
-    def validate(self, asset_path: str, meta_raw: str, sigs: dict) -> bool:
-        """validate hashes and signatures for Starling Capture data.
+    auth_msg_desc = "SHA256 hash of meta.json"
+
+    def __init__(
+        self, asset_path: str, meta_raw: str, sigs: dict, *args, **kwargs
+    ) -> None:
+        """
 
         Args:
             asset_path: the filesystem path to the asset file
             meta_raw: the unmodified JSON bytes from the "meta" section of the request
             sigs: parsed JSON from the "signature" section of the request
+        """
+
+        self.asset_path = asset_path
+        self.meta_raw = meta_raw
+        self.meta = json.loads(self.meta_raw)
+        self.meta_hash = sha256(self.meta_raw.encode()).hexdigest()
+        self.sigs = sigs
+        self.json = []
+        self.provider = "starling-capture"
+
+    def name() -> str:
+        return "starling-capture"
+
+    def validate(self) -> bool:
+        """
+        Validate hashes and signatures for Starling Capture data.
 
         Returns:
             True if everything verified, False if not
@@ -33,19 +52,14 @@ class StarlingCapture:
             Any errors raised due to signature bytes being malformed
         """
 
-        meta = json.loads(meta_raw)
+        meta = json.loads(self.meta_raw)
 
         return self._validate_create_hashes(
-            asset_path, meta, sigs
-        ) and self._validate_all_sigs(meta_raw, sigs)
+            self.asset_path, meta, self.sigs
+        ) and self._validate_all_sigs(self.meta_raw, self.sigs)
 
-    def _validate_create_hashes(self, asset_path: str, meta: dict, sigs: dict) -> bool:
+    def _validate_create_hashes(self) -> bool:
         """Validate asset hashes in the data sent to the create action.
-
-        Args:
-            asset_path: the local path to the asset file
-            meta: parsed JSON from the "signature" section of the request
-            sigs: parsed JSON from the "signature" section of the request
 
         Returns:
             True if the hashes matched the asset, False if not
@@ -56,12 +70,7 @@ class StarlingCapture:
             File I/O errors if there's an issue reading the asset file
         """
 
-        data = {"meta": meta, "signature": sigs}
-
-        if data.get("meta") is None:
-            raise ValueError("meta must be present, but got None")
-        if data.get("signature") is None:
-            raise ValueError("signature must be present, but got None")
+        data = {"meta": self.meta, "signature": self.sigs}
 
         # First check all hashes match
 
@@ -78,16 +87,12 @@ class StarlingCapture:
                     raise Exception("Not all proofHash fields of signatures match")
 
         # Now actually verify the hash
-        asset_hash = sha256sum(asset_path)
+        asset_hash = sha256sum(self.asset_path)
         return sig_hash == asset_hash
 
-    def _validate_all_sigs(self, meta_raw: str, signatures: dict) -> bool:
-        """Validate all signatures.
-
-        Args:
-            meta_raw: string containing JSON meta information, unmodified from POST
-                    request
-            signatures: 'signature' section of the request data
+    def _validate_all_sigs(self) -> bool:
+        """
+        Validate all signatures.
 
         Returns:
             True if all signatures verified, False if not
@@ -97,19 +102,44 @@ class StarlingCapture:
             Any errors raised due to signature bytes being malformed
         """
 
-        for sig in signatures:
+        for sig in self.sigs:
             if sig["provider"] == "AndroidOpenSSL":
-                if not self._validate_androidopenssl(meta_raw, sig):
+                if not self._validate_androidopenssl(self.meta_raw, sig):
                     return False
+                self.json.append(
+                    {
+                        "provider": self.provider,
+                        "algorithm": "starling-capture-AndroidOpenSSL",
+                        "signature": sig["signature"],
+                        "publicKey": sig["publicKey"],
+                        "authenticatedMessage": self.meta_hash,
+                        "authenticatedMessageDescription": self.auth_msg_desc,
+                    }
+                )
             elif sig["provider"] == "Zion":
-                if not self._validate_zion(meta_raw, sig):
+                if not self._validate_zion(self.meta_raw, sig):
                     return False
+                self.json.append(
+                    {
+                        "provider": self.provider,
+                        "algorithm": "starling-capture-Zion-session"
+                        if sig["publicKey"].startswith("Session")
+                        else "starling-capture-Zion",
+                        "signature": sig["signature"],
+                        "publicKey": sig["publicKey"],
+                        "authenticatedMessage": self.meta_hash,
+                        "authenticatedMessageDescription": self.auth_msg_desc,
+                    }
+                )
             else:
                 raise NotImplementedError(f"Provider {sig['provider']} not implemented")
-
         return True
 
-    def _validate_androidopenssl(self, meta_raw: str, signature: dict) -> bool:
+    def validated_sigs_json(self, short=False) -> list:
+        return self._shorten(self.json) if short else self.json
+
+    @staticmethod
+    def _validate_androidopenssl(meta_raw: str, signature: dict) -> bool:
         # Adapted from signature verification example
         # https://www.pycryptodome.org/en/latest/src/signature/dsa.html
 
@@ -122,7 +152,8 @@ class StarlingCapture:
         except ValueError:
             return False
 
-    def _validate_zion(self, meta_raw: str, signature: dict) -> bool:
+    @staticmethod
+    def _validate_zion(meta_raw: str, signature: dict) -> bool:
         # Content of publicKey field is generated by app
         # Source code is here: https://github.com/starlinglab/starling-capture/blob/fbf55abb205444d5f067d048ff5c5c89682f94b4/app/src/main/java/io/numbersprotocol/starlingcapture/collector/zion/ZionSessionSignatureProvider.kt#L24-L40
         # Either the publicKey field starts with "Session" and the data is signed
