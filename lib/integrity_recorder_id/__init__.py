@@ -99,16 +99,16 @@ def build_recorder_id_json():
             for link in netifaces.ifaddresses(interface)[netifaces.AF_INET]:
                 if not ipaddress.ip_address(link["addr"]).is_private:
                     item = {
-                        "type": "ip",
-                        "values": {"if": interface, "address": link["addr"]},
+                        "type": "ipv4",
+                        "values": {"interface": interface, "address": link["addr"]},
                     }
                     net.append(item)
         if netifaces.AF_INET6 in netifaces.ifaddresses(interface):
             for link in netifaces.ifaddresses(interface)[netifaces.AF_INET6]:
                 if not ipaddress.ip_address(link["addr"]).is_private:
                     item = {
-                        "type": "ip",
-                        "values": {"if": interface, "address": link["addr"]},
+                        "type": "ipv6",
+                        "values": {"interface": interface, "address": link["addr"]},
                     }
                     net.append(item)
     recorder = {"host": socket.getfqdn(), "info": net}
