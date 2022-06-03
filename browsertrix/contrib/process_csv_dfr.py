@@ -159,11 +159,11 @@ with open("urk_research_urls_5_20_FINAL.csv", newline="\n", encoding="utf8") as 
 
             if countlines >= startrow:
                 ConfigureCrawl(
+                    AID,
                     URL,
                     json_metadata,
                     "DFRLabMetadata",
-                    {"key": "ts", "value": TS},
-                    AID,
+                    {"key": "ts", "value": TS}
                 )
             if countlines >= endrow:
                 break
