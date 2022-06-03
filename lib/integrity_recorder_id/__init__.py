@@ -111,7 +111,14 @@ def build_recorder_id_json():
                         "values": {"interface": interface, "address": link["addr"]},
                     }
                     net.append(item)
-    recorder = {"host": socket.getfqdn(), "info": net}
+    item = {
+      "type":"hostname",
+      "values": {
+        "hostname": socket.getfqdn()
+      }
+    }
+    net.append(item)
+    recorder = {"service": "host", "info": net}
     integrity["recorderMetadata"].append(recorder)
 
     # +Z becuase python doesnt support Z like Javascript Does
