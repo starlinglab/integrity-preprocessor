@@ -123,7 +123,7 @@ def parse_wacz_data_extra(wacz_path):
 
         if "signedData" in d:
             # auth sign data
-            if "authsignDomain" in d["signedData"]:
+            if "domain" in d["signedData"]:
                 extras["authsignSoftware"] = d["signedData"]["software"]
                 extras["authsignDomain"] = d["signedData"]["domain"]
             elif "publicKey" in d["signedData"]:
