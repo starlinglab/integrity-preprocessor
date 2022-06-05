@@ -15,7 +15,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import common
-
+logging = common.logging
 
 dotenv.load_dotenv()
 
@@ -165,7 +165,7 @@ def parse_chat_metadata_from_slack(localPath, folder):
 
 
 def parse_chat_metadata_from_telegram(localPath, folder):
-    print(f"Telegram - Pasing {folder}")
+    logging.info(f"Telegram - Pasing {folder}")
     meta = {"dateCreated": "", "maxDate": -1, "minDate": -1, "channels": []}
     for archiveName in os.listdir(os.path.join(localPath, folder)):
 
@@ -184,7 +184,7 @@ def parse_chat_metadata_from_telegram(localPath, folder):
                     # Process only JSON files
                     current_full_path = os.path.join(d, archiveContentFileName)
                     if os.path.splitext(current_full_path)[1] == ".json":
-                        print("Processing " + archiveContentFileName)
+                        logging.info("Processing " + archiveContentFileName)
                         with open(
                             current_full_path,
                             "r",
@@ -260,26 +260,26 @@ def process_ingestor(ingestor):
 
                 # Only look for zip files
                 if fileext == ".zip":
-                    print(f"FileMode - Parsing {item}")
+                    logging.info(f"FileMode - Parsing {item}")
                     with open(localPath + "/" + filename + ".json", "r") as f:
                         signal_metadata = json.load(f)
                         content_meta["private"]["signal"] = signal_metadata
 
                     # additional specific processing
-                    print(
+                    logging.info(
                         f"FileMode - Parsing {item} - Matching "
                         + content_meta["private"]["signal"]["source"]
                     )
                     if content_meta["private"]["signal"]["source"] in user_config:
                         user = user_config[content_meta["private"]["signal"]["source"]]
                         output_path=user["targetpath"]
-                        print(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
+                        logging.info(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
                         content_meta["author"] = user["author"]
 
                         ## TODO org and collection
 
                     if "processing" in ingestor_config:
-                        print(f"FileMode - parsing {item} - processing Proofmode")
+                        logging.info(f"FileMode - parsing {item} - processing Proofmode")
                         if ingestor_config["processing"] == "proofmode":
                             content_meta["private"][
                                 "proofmode"
@@ -307,7 +307,7 @@ def process_ingestor(ingestor):
                         stage_path,
                         output_path
                     )
-                    print(f"FileMode - parsing {item} - wrote file {out_file}")
+                    logging.info(f"FileMode - parsing {item} - wrote file {out_file}")
                     archived = localPath + "/archived"
                     # Move to archived folder
                     if not os.path.isdir(archived):
@@ -320,7 +320,7 @@ def process_ingestor(ingestor):
                         localPath + "/" + filename + ".json",
                         archived + "/" + filename + ".json",
                     )
-                    print(f"FileMode - parsing {item} - Moved to Archive")
+                    logging.info(f"FileMode - parsing {item} - Moved to Archive")
 
     # Process folder mode
     if ingestor_config["method"] == "folder":
@@ -343,7 +343,7 @@ def process_ingestor(ingestor):
                             item, "%Y-%m-%d-%H"
                         ) + datetime.timedelta(hours=1)
                     else:
-                        print("Failed to parse {item}")
+                        logging.info("Failed to parse {item}")
                     # Offset datetime for 1 min to give any writing time to finish
                     folderDateTime = folderDateTime + datetime.timedelta(minutes=1)
                     currentDateTime = datetime.datetime.utcnow()
@@ -353,20 +353,20 @@ def process_ingestor(ingestor):
                     if folderTimeDelta > 0:
 
                         if ingestor_config["type"] == "slack":
-                            print(f"FolderMode - Parsing {item} ({ingestor}) Slack")
+                            logging.info(f"FolderMode - Parsing {item} ({ingestor}) Slack")
                             meta_chat = parse_chat_metadata_from_slack(localPath, item)
                         elif ingestor_config["type"] == "telegram":
-                            print(f"FolderMode - Parsing {item} ({ingestor}) Telegram")
+                            logging.info(f"FolderMode - Parsing {item} ({ingestor}) Telegram")
                             meta_chat = parse_chat_metadata_from_telegram(
                                 localPath, item
                             )
                         else:
-                            print(f"FolderMode - Skipping {item} ({ingestor}) UNKNOWN MODE")
+                            logging.info(f"FolderMode - Skipping {item} ({ingestor}) UNKNOWN MODE")
 
 
                         # No data to deal with, skip folder
                         if meta_chat is None:
-                            print(f"FolderMode - Skipping {item} - meta_chat empty")
+                            logging.info(f"FolderMode - Skipping {item} - meta_chat empty")
                             os.rename(
                                 os.path.join(localPath, item),
                                 os.path.join(localPath, "S-" + item),
@@ -392,7 +392,7 @@ def process_ingestor(ingestor):
                             stage_path,
                             output_path,
                         )
-                        print(f"FolderMode - Output {item} - Write file {out_file}")
+                        logging.info(f"FolderMode - Output {item} - Write file {out_file}")
 
                         # Rename folder to prevent re-processing
                         os.rename(
