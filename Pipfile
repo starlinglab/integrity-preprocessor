@@ -7,6 +7,7 @@ name = "pypi"
 watchdog = "~=2.1.8"
 requests = "~=2.27.1"
 python-dotenv = "~=0.20.0"
+netifaces = "==0.11.0"
 # Signature verification
 pycryptodome = "~=3.14.1"
 # For sig66
@@ -18,7 +19,6 @@ aiohttp = "~=3.8.1"
 aiohttp-jwt = "*"
 # For Starling Capture
 eth-account = "==0.6.*"
-netifaces = "==0.11.0"
 
 [dev-packages]
 pytest = "~=7.1.2"
