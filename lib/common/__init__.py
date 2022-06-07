@@ -7,6 +7,8 @@ import datetime
 import hashlib
 import logging
 
+from warcio.archiveiterator import ArchiveIterator
+
 import validate
 import integrity_recorder_id
 
@@ -83,6 +85,19 @@ def sha256sum(filename):
         return hasher.hexdigest()
 
 
+def extract_wacz_user_agent(wacz_path):
+    with ZipFile(wacz_path, "r") as wacz:
+        warc = next((s for s in wacz.namelist() if s.endswith(".warc.gz")), None)
+        if warc is None:
+            return None
+
+        with wacz.open(warc) as warcf:
+            for record in ArchiveIterator(warcf):
+                if record.rec_type == "request":
+                    return record.http_headers.get_header("User-Agent")
+    return None
+
+
 def parse_wacz_data_extra(wacz_path):
     if not validate.Wacz(wacz_path).validate():
         raise Exception("WACZ fails to validate")
@@ -102,12 +117,16 @@ def parse_wacz_data_extra(wacz_path):
                 extras["localsignPublicKey"] = d["signedData"]["publicKey"]
                 extras["localsignSignaturey"] = d["signedData"]["signature"]
             else:
-                logging.warning(f"{wacz_path} WACZ missing signature ")
+                logging.warning(f"{wacz_path} WACZ missing signature")
+
+        user_agent = extract_wacz_user_agent(wacz_path)
 
         d = json.loads(wacz.read("datapackage.json"))
         extras["waczVersion"] = d["wacz_version"]
         extras["software"] = d["software"]
         extras["dateCrawled"] = d["created"]
+        if user_agent:
+            extras["userAgentCrawled"] = user_agent
 
         if "title" in d:
             extras["waczTitle"] = d["title"]
