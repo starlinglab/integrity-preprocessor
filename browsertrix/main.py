@@ -94,6 +94,21 @@ default_content = {
 }
 
 
+def download_file(url, local_filename):
+    # NOTE the stream=True parameter below
+    with requests.get(url, stream=True) as r:
+        if r.status_code == 200:
+            with open(local_filename, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    # If you have chunk encoded response uncomment if
+                    # and set chunk_size parameter to None.
+                    # if chunk:
+                    f.write(chunk)
+        else:
+            return -1
+    return 1
+
+
 def generate_metadata_content(
     meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created
 ):
@@ -345,8 +360,11 @@ while True:
 
             crawl_json = r.json()
 
-            wacz_path = os.path.join(
-                SOURCE_PATH, BUCKET, crawl_json["resources"][0]["name"]
+            wacz_url = crawl_json["resources"][0]["path"]
+            # Crop to ? since signaures method fail but public works
+            wacz_url = wacz_url[: wacz_url.find("?")]
+            wacz_path = (
+                TARGET_ROOT_PATH[current_collection] + "/tmp/" + crawl["cid"] + ".wacz"
             )
 
             if os.path.exists(wacz_path + ".done"):
@@ -362,15 +380,14 @@ while True:
                 new_last_check = finish_date.timestamp()
                 new_crawls.append(crawl["id"])
                 continue
+            download_file(wacz_url, wacz_path)
+            logging.info(f"Downloaded {wacz_path}")
 
-            i = 1
-            while not os.path.exists(wacz_path):
-                logging.error(
-                    "WACZ not available at path '%s' (tries: %d)", wacz_path, i
-                )
-                metrics["wacz_not_found"] += 1
-                i += 1
-                time.sleep(FAIL_DELAY)
+            if not os.path.exists(wacz_path):
+                Path(wacz_path + ".done").touch()
+                Path(wacz_path + ".error").touch()
+                logging.error("WACZ not available at path '%s'", wacz_path)
+                continue
 
             # Meta data collection and generation
             recorder_meta = common.get_recorder_meta("browsertrix")
@@ -423,6 +440,7 @@ while True:
 
             logging.info("Successfully processed crawl %s", crawl["id"])
             Path(wacz_path + ".done").touch()
+            os.remove(wacz_path)
 
             metrics["processed_crawls"] += 1
             # Update data since processing of crawl was successful
