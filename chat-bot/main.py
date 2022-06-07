@@ -15,7 +15,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import common
-
+logging = common.logging
 
 dotenv.load_dotenv()
 
@@ -27,23 +27,23 @@ with open(CONFIG_FILE) as f:
 default_content = config["content"]
 
 
-def start_metadata_content(injestor, meta_chat):
-    bot_type = injestor["type"]
+def start_metadata_content(ingestor, meta_chat):
+    bot_type = ingestor["type"]
     meta_content = deepcopy(default_content)
     meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
 
     if bot_type == "slack":
         meta_content["private"]["slack"] = {}
-        meta_content["private"]["slack"]["botAccount"] = injestor["botAccount"]
-        meta_content["private"]["slack"]["workspace"] = injestor["workspace"]
+        meta_content["private"]["slack"]["botAccount"] = ingestor["botAccount"]
+        meta_content["private"]["slack"]["workspace"] = ingestor["workspace"]
     if bot_type == "signal":
         meta_content["private"]["signal"] = {}
-        if "phone" in injestor:
-            meta_content["private"]["signal"]["phone"] = injestor["phone"]
+        if "phone" in ingestor:
+            meta_content["private"]["signal"]["phone"] = ingestor["phone"]
 
     if bot_type == "telegram":
         meta_content["private"]["telegram"] = {}
-        meta_content["private"]["telegram"]["botAccount"] = injestor["botAccount"]
+        meta_content["private"]["telegram"]["botAccount"] = ingestor["botAccount"]
 
     meta_content["extras"]["botType"] = bot_type
 
@@ -165,7 +165,7 @@ def parse_chat_metadata_from_slack(localPath, folder):
 
 
 def parse_chat_metadata_from_telegram(localPath, folder):
-    print(f"Telegram - Pasing {folder}")
+    logging.info(f"Telegram - Pasing {folder}")
     meta = {"dateCreated": "", "maxDate": -1, "minDate": -1, "channels": []}
     for archiveName in os.listdir(os.path.join(localPath, folder)):
 
@@ -184,7 +184,7 @@ def parse_chat_metadata_from_telegram(localPath, folder):
                     # Process only JSON files
                     current_full_path = os.path.join(d, archiveContentFileName)
                     if os.path.splitext(current_full_path)[1] == ".json":
-                        print("Processing " + archiveContentFileName)
+                        logging.info("Processing " + archiveContentFileName)
                         with open(
                             current_full_path,
                             "r",
@@ -207,49 +207,49 @@ def parse_chat_metadata_from_telegram(localPath, folder):
                                 meta["channels"].append(channelName)
     return meta
 
-# Process injestor
-def process_injestor(injestor):
-    injestor_config = config["injestors"][injestor]
+# Process ingestor
+def process_ingestor(ingestor):
+    ingestor_config = config["ingestors"][ingestor]
     user_config = {}
 
     # Load userConfig 
-    if "userConfig" in injestor_config:
-        with open(injestor_config["userConfig"]) as f:
+    if "userConfig" in ingestor_config:
+        with open(ingestor_config["userConfig"]) as f:
             user_config = json.load(f)
 
     # Prepeare folders
-    stage_path = os.path.join(injestor_config["targetpath"], "tmp")
-    output_path_default = os.path.join(injestor_config["targetpath"], "input")
+    stage_path = os.path.join(ingestor_config["targetpath"], "tmp")
+    output_path_default = os.path.join(ingestor_config["targetpath"], "input")
     output_path = output_path_default
 
     if not os.path.exists(stage_path):
         os.makedirs(stage_path)
 
-    meta_bot_type = injestor_config["type"]
+    meta_bot_type = ingestor_config["type"]
     meta_channels = []
     meta_date_created = ""
     meta_min_date = -1
     meta_max_date = -1
     meta_data = {}
 
-    if injestor_config["type"] == "telegram":
-        localPath = injestor_config["localpath"]
+    if ingestor_config["type"] == "telegram":
+        localPath = ingestor_config["localpath"]
         telegram_parse_events_into_folders(localPath)
         recorder_meta = common.get_recorder_meta("telegram_bot")
 
-    if injestor_config["type"] == "slack":
+    if ingestor_config["type"] == "slack":
         recorder_meta = common.get_recorder_meta("slack_bot")
         meta_channels = []
 
-    if injestor_config["type"] == "signal":
+    if ingestor_config["type"] == "signal":
         recorder_meta = common.get_recorder_meta("signal_bot")
 
     # Process file mode
-    if injestor_config["method"] == "file":
-        localPath = injestor_config["localpath"]
+    if ingestor_config["method"] == "file":
+        localPath = ingestor_config["localpath"]
         for item in os.listdir(localPath):
             if os.path.isfile(os.path.join(localPath, item)):
-                content_meta = start_metadata_content(injestor_config, {})
+                content_meta = start_metadata_content(ingestor_config, {})
                 filesplit = os.path.splitext(item)
                 filename = filesplit[0]
                 fileext = filesplit[1]
@@ -260,27 +260,27 @@ def process_injestor(injestor):
 
                 # Only look for zip files
                 if fileext == ".zip":
-                    print(f"FileMode - Parsing {item}")
+                    logging.info(f"FileMode - Parsing {item}")
                     with open(localPath + "/" + filename + ".json", "r") as f:
                         signal_metadata = json.load(f)
                         content_meta["private"]["signal"] = signal_metadata
 
                     # additional specific processing
-                    print(
+                    logging.info(
                         f"FileMode - Parsing {item} - Matching "
                         + content_meta["private"]["signal"]["source"]
                     )
                     if content_meta["private"]["signal"]["source"] in user_config:
                         user = user_config[content_meta["private"]["signal"]["source"]]
                         output_path=user["targetpath"]
-                        print(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
+                        logging.info(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
                         content_meta["author"] = user["author"]
 
                         ## TODO org and collection
 
-                    if "processing" in injestor_config:
-                        print(f"FileMode - parsing {item} - processing Proofmode")
-                        if injestor_config["processing"] == "proofmode":
+                    if "processing" in ingestor_config:
+                        logging.info(f"FileMode - parsing {item} - processing Proofmode")
+                        if ingestor_config["processing"] == "proofmode":
                             content_meta["private"][
                                 "proofmode"
                             ] = common.parse_proofmode_data(
@@ -307,7 +307,7 @@ def process_injestor(injestor):
                         stage_path,
                         output_path
                     )
-                    print(f"FileMode - parsing {item} - wrote file {out_file}")
+                    logging.info(f"FileMode - parsing {item} - wrote file {out_file}")
                     archived = localPath + "/archived"
                     # Move to archived folder
                     if not os.path.isdir(archived):
@@ -320,11 +320,11 @@ def process_injestor(injestor):
                         localPath + "/" + filename + ".json",
                         archived + "/" + filename + ".json",
                     )
-                    print(f"FileMode - parsing {item} - Moved to Archive")
+                    logging.info(f"FileMode - parsing {item} - Moved to Archive")
 
     # Process folder mode
-    if injestor_config["method"] == "folder":
-        localPath = injestor_config["localpath"]
+    if ingestor_config["method"] == "folder":
+        localPath = ingestor_config["localpath"]
 
         # Loop through date/time structured directories
         for item in os.listdir(localPath):
@@ -343,7 +343,7 @@ def process_injestor(injestor):
                             item, "%Y-%m-%d-%H"
                         ) + datetime.timedelta(hours=1)
                     else:
-                        print("Failed to parse {item}")
+                        logging.info("Failed to parse {item}")
                     # Offset datetime for 1 min to give any writing time to finish
                     folderDateTime = folderDateTime + datetime.timedelta(minutes=1)
                     currentDateTime = datetime.datetime.utcnow()
@@ -352,21 +352,21 @@ def process_injestor(injestor):
                     # Folder time has passed, process
                     if folderTimeDelta > 0:
 
-                        if injestor_config["type"] == "slack":
-                            print(f"FolderMode - Parsing {item} ({injestor}) Slack")
+                        if ingestor_config["type"] == "slack":
+                            logging.info(f"FolderMode - Parsing {item} ({ingestor}) Slack")
                             meta_chat = parse_chat_metadata_from_slack(localPath, item)
-                        elif injestor_config["type"] == "telegram":
-                            print(f"FolderMode - Parsing {item} ({injestor}) Telegram")
+                        elif ingestor_config["type"] == "telegram":
+                            logging.info(f"FolderMode - Parsing {item} ({ingestor}) Telegram")
                             meta_chat = parse_chat_metadata_from_telegram(
                                 localPath, item
                             )
                         else:
-                            print(f"FolderMode - Skipping {item} ({injestor}) UNKNOWN MODE")
+                            logging.info(f"FolderMode - Skipping {item} ({ingestor}) UNKNOWN MODE")
 
 
                         # No data to deal with, skip folder
                         if meta_chat is None:
-                            print(f"FolderMode - Skipping {item} - meta_chat empty")
+                            logging.info(f"FolderMode - Skipping {item} - meta_chat empty")
                             os.rename(
                                 os.path.join(localPath, item),
                                 os.path.join(localPath, "S-" + item),
@@ -375,13 +375,13 @@ def process_injestor(injestor):
 
                         # Zip up content of directory to a temp file
                         temp_filename = os.path.join(
-                            tmpFolder, injestor + str(folderDateTime.timestamp()) + ".zip"
+                            tmpFolder, ingestor + str(folderDateTime.timestamp()) + ".zip"
                         )
                         with zipfile.ZipFile(temp_filename, "w") as archive:
                             zipFolder(archive, os.path.join(localPath, item))
 
                         content_meta = start_metadata_content(
-                            injestor_config,
+                            ingestor_config,
                             meta_chat
                         )
 
@@ -392,7 +392,7 @@ def process_injestor(injestor):
                             stage_path,
                             output_path,
                         )
-                        print(f"FolderMode - Output {item} - Write file {out_file}")
+                        logging.info(f"FolderMode - Output {item} - Write file {out_file}")
 
                         # Rename folder to prevent re-processing
                         os.rename(
@@ -403,7 +403,7 @@ def process_injestor(injestor):
 
 while True:
     try:
-        for injestor in config["injestors"]:
-            process_injestor(injestor)
+        for ingestor in config["ingestors"]:
+            process_ingestor(ingestor)
     except Exception as inst:
         raise inst
