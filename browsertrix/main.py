@@ -57,14 +57,17 @@ if os.path.exists(CONFIG_FILE):
 TARGET_PATH_TMP = {}
 TARGET_PATH = {}
 TARGET_ROOT_PATH = {}
+TARGET_AUTHOR = {}
 
 # Process collections in config
 if "collections" in config_data:
     for aid in config_data["collections"]:
-        # Create temporary folder to stage files before moving them into action folder
+        TARGET_AUTHOR[aid] = config_data["collections"][aid]["author"]
         TARGET_ROOT_PATH[aid] = config_data["collections"][aid]["target_path"]
         TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")
         TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], "input")
+
+        # Create temporary folder to stage files before moving them into action folder
         if not os.path.exists(TARGET_PATH_TMP[aid]):
             os.makedirs(TARGET_PATH_TMP[aid])
         logging.info(f"Loaded collection archive {aid}")
@@ -110,7 +113,7 @@ def download_file(url, local_filename):
 
 
 def generate_metadata_content(
-    meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created
+    meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created, author
 ):
 
     extras = deepcopy(meta_extra)
@@ -126,7 +129,10 @@ def generate_metadata_content(
     private["crawlConfigs"] = meta_crawl_config
     private["crawlData"] = meta_crawl_data
 
-    meta_content = deepcopy(default_content)
+    meta_content = deepcopy(default_content)  
+    if author:
+        meta_content['author'] = author
+
 
     create_date = meta_date_created.split("T")[0]
     meta_content["name"] = f"Web archive on {create_date}"
@@ -419,6 +425,7 @@ while True:
                 meta_additional,
                 meta_extra,
                 meta_date_created,
+                TARGET_AUTHOR[current_collection]
             )
 
             i = 1
