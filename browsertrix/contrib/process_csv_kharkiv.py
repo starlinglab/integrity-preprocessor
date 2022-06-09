@@ -22,9 +22,8 @@ DATA_DIR = os.environ.get("DATA_DIR")
 PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
 # DATA_JSON_PATH = os.path.join(DATA_DIR, "data.json")
 
-
-TARGET_ROOT_PATH = "/mnt/integrity_store/starling/internal/hala-systems/march-kharkiv"
-AID = "323df0f3-ea9c-47e8-88ef-d128d73f1ed3"
+TARGET_ROOT_PATH = "/mnt/integrity_store/starling/internal/dfrlab/march-kharkiv"
+AID = "792619ef-2ca6-424c-a7b0-acaa1e0fd1c9"
 
 startrow = 1
 endrow = 100
