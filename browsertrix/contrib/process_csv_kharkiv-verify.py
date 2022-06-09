@@ -24,7 +24,7 @@ PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
 
 
 TARGET_ROOT_PATH = "/mnt/integrity_store/starling/internal/hala-systems/submission-1-kharkiv-verifications"
-AID = "a69f498d-4440-4359-b070-c28dec1d9b85"
+AID = "4559800f-19d7-4ed1-915a-05bc5e963db8"
 
 startrow = 1
 endrow = 100
