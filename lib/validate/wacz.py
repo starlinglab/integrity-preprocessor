@@ -117,6 +117,10 @@ class Wacz(Validate):
         with ZipFile(self.wacz_path, "r") as wacz:
             digest = json.loads(wacz.read("datapackage-digest.json"))
 
+            if "signedData" not in digest:
+                # Unsigned WACZ, not allowed
+                return False
+
             # Validate hash
             with wacz.open("datapackage.json", "r") as fh:
                 _, hash = hash_stream("sha256", fh)
