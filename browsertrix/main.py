@@ -33,6 +33,8 @@ LOG_FILE = os.environ.get("LOG_FILE", None)
 DATA_JSON_PATH = os.environ.get("DATA_FILE")
 CONFIG_FILE = os.environ.get("CONFIG_FILE")
 PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
+HOSTNAME = os.environ.get("HOSTNAME")
+
 
 LOOP_INTERVAL = 60
 FAIL_DELAY = 10
@@ -113,7 +115,12 @@ def download_file(url, local_filename):
 
 
 def generate_metadata_content(
-    meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created, author
+    meta_crawl_config,
+    meta_crawl_data,
+    meta_additional,
+    meta_extra,
+    meta_date_created,
+    author,
 ):
 
     extras = deepcopy(meta_extra)
@@ -129,10 +136,9 @@ def generate_metadata_content(
     private["crawlConfigs"] = meta_crawl_config
     private["crawlData"] = meta_crawl_data
 
-    meta_content = deepcopy(default_content)  
+    meta_content = deepcopy(default_content)
     if author:
-        meta_content['author'] = author
-
+        meta_content["author"] = author
 
     create_date = meta_date_created.split("T")[0]
     meta_content["name"] = f"Web archive on {create_date}"
@@ -294,7 +300,8 @@ while True:
         if aid in TARGET_PATH:
             current_collection = aid
         else:
-            current_collection = "default"
+            # Skip because archive is not defined in collection file
+            continue
 
         logging.info("Working on archive %s", aid)
 
@@ -366,9 +373,7 @@ while True:
 
             crawl_json = r.json()
 
-            wacz_url = crawl_json["resources"][0]["path"]
-            # Crop to ? since signaures method fail but public works
-            wacz_url = wacz_url[: wacz_url.find("?")]
+            wacz_url = f"https://{HOSTNAME}" + crawl_json["resources"][0]["path"]
             wacz_path = (
                 TARGET_ROOT_PATH[current_collection] + "/tmp/" + crawl["cid"] + ".wacz"
             )
@@ -425,7 +430,7 @@ while True:
                 meta_additional,
                 meta_extra,
                 meta_date_created,
-                TARGET_AUTHOR[current_collection]
+                TARGET_AUTHOR[current_collection],
             )
 
             i = 1
