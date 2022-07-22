@@ -9,7 +9,7 @@ import os
 import tempfile
 import zipfile
 from zipfile import ZipFile
-
+import traceback
 
 # Kludge
 import sys
@@ -268,7 +268,6 @@ def process_ingestor(ingestor):
 
     meta_bot_type = ingestor_config["type"]
     meta_channels = []
-    meta_date_created = ""
     meta_min_date = -1
     meta_max_date = -1
     meta_data = {}
@@ -286,7 +285,7 @@ def process_ingestor(ingestor):
     if ingestor_config["type"] == "signal":
         recorder_meta = common.get_recorder_meta("signal_bot")
 
-    # Process file mode injestor
+    # Process file mode injestor (Signal)
     if ingestor_config["method"] == "file":
         localpath = ingestor_config["localpath"]
         archived_path = localpath + "/archived"
@@ -300,78 +299,95 @@ def process_ingestor(ingestor):
 
         for item in os.listdir(localpath):
             if os.path.isfile(os.path.join(localpath, item)):
-                content_meta = start_metadata_content(ingestor_config, {})
-                filesplit = os.path.splitext(item)
-                filename = filesplit[0]
-                fileext = filesplit[1]
+                try:
+                    content_meta = start_metadata_content(ingestor_config, {})
+                    filesplit = os.path.splitext(item)
+                    filename = filesplit[0]
+                    fileext = filesplit[1]
 
-                # set datCreate to file date/time
-                date_file_created = os.path.getmtime(os.path.join(localpath, item))
-                content_meta["dateCreated"] = datetime.datetime.fromtimestamp(date_file_created).isoformat() + "Z"
+                    # set datCreate to file date/time
+                    date_file_created = os.path.getmtime(os.path.join(localpath, item))
+                    content_meta["dateCreated"] = datetime.datetime.fromtimestamp(date_file_created).isoformat() + "Z"
 
-                # Only look for zip files
-                if fileext == ".zip":
-                    logging.info(f"FileMode - Parsing {item}")
-                    with open(localpath + "/" + filename + ".json", "r") as f:
-                        signal_metadata = json.load(f)
-                        content_meta["private"]["signal"] = signal_metadata
+                    # Only look for zip files
+                    if fileext == ".zip":
+                        logging.info(f"FileMode - Parsing {item}")
+                        with open(localpath + "/" + filename + ".json", "r") as f:
+                            signal_metadata = json.load(f)
+                            content_meta["private"]["signal"] = signal_metadata
 
-                    # additional specific processing
-                    logging.info(
-                        f"FileMode - Parsing {item} - Matching "
-                        + content_meta["private"]["signal"]["source"]
-                    )
+                        # additional specific processing
+                        logging.info(
+                            f"FileMode - Parsing {item} - Matching "
+                            + content_meta["private"]["signal"]["source"]
+                        )
 
-                    ##TODO## Assumes signal
-                    if content_meta["private"]["signal"]["source"] in user_config:
-                        user = user_config[content_meta["private"]["signal"]["source"]]
-                        output_path=user["targetpath"]
-                        logging.info(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
-                        content_meta["author"] = user["author"]
+                        ##TODO## Assumes signal
+                        if content_meta["private"]["signal"]["source"] in user_config:
+                            user = user_config[content_meta["private"]["signal"]["source"]]
+                            output_path=user["targetpath"]
+                            logging.info(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
+                            content_meta["author"] = user["author"]
 
-                        ##TODO## org and collection ?
+                            ##TODO## org and collection ?
 
-                    # Preform any specific file format processing
-                    if "processing" in ingestor_config:
-                        logging.info(f"FileMode - parsing {item} - processing Proofmode")
-                        if ingestor_config["processing"] == "proofmode":
-                            content_meta["private"][
-                                "proofmode"
-                            ] = common.parse_proofmode_data(
-                                localpath + "/" + filename + ".zip"
-                            )
-                            ##TODO## Should this be moved into parse_proofmode_data?
-                            asset_type = "content"
-                            for asset_filename in content_meta["private"]["proofmode"]:
-                                ext = os.path.splitext(asset_filename)[1]
-                                if ext in [".jpg", ".png", ".heic"]:
-                                    asset_type = "image"
-                                if ext in [".wav", ".m4a", ".mp3"]:
-                                    asset_type = "audio"
-                                if ext in [".mp4", ".m4v", ".avi", ".mov"]:
-                                    asset_type = "video"
+                        # Preform any specific file format processing
+                        if "processing" in ingestor_config:
+                            logging.info(f"FileMode - parsing {item} - processing Proofmode")
+                            if ingestor_config["processing"] == "proofmode":
+                                content_meta["private"][
+                                    "proofmode"
+                                ] = common.parse_proofmode_data(
+                                    localpath + "/" + filename + ".zip"
+                                )
+                                ##TODO## Should this be moved into parse_proofmode_data?
+                                asset_type = "content"
+                                for asset_filename in content_meta["private"]["proofmode"]:
+                                    ext = os.path.splitext(asset_filename)[1]
+                                    if ext in [".jpg", ".png", ".heic"]:
+                                        asset_type = "image"
+                                    if ext in [".wav", ".m4a", ".mp3"]:
+                                        asset_type = "audio"
+                                    if ext in [".mp4", ".m4v", ".avi", ".mov"]:
+                                        asset_type = "video"
 
-                            content_meta["name"] = f"Authenticated {asset_type}"
-                            content_meta["description"] = f"{asset_type.title()} with ProofMode metadata received via Signal"                            
-                            content_meta["dateCreated"] = content_meta["private"]["proofmode"]['dateCreate']
+                                content_meta["name"] = f"Authenticated {asset_type}"
+                                content_meta["description"] = f"{asset_type.title()} with ProofMode metadata received via Signal"                            
+                                content_meta["dateCreated"] = content_meta["private"]["proofmode"]['dateCreate']
 
-                    out_file = common.add_to_pipeline(
-                        localpath + "/" + filename + ".zip",
-                        content_meta,
-                        recorder_meta,
-                        stage_path,
-                        output_path
-                    )
-                    logging.info(f"FileMode - parsing {item} - wrote file {out_file}")
+                        out_file = common.add_to_pipeline(
+                            localpath + "/" + filename + ".zip",
+                            content_meta,
+                            recorder_meta,
+                            stage_path,
+                            output_path
+                        )
+                        logging.info(f"FileMode - parsing {item} - wrote file {out_file}")
+                        os.rename(
+                            localpath + "/" + filename + ".zip",
+                            archived_path + "/" + filename + ".zip",
+                        )
+                        os.rename(
+                            localpath + "/" + filename + ".json",
+                            archived_path + "/" + filename + ".json",
+                        )
+                        logging.info(f"FileMode - parsing {item} - Moved to Archive")
+                # General failed exception
+                except Exception as e:
+                    logging.exception(e)
+                    logging.error(f"FileMode - processing {item} - " + str(e))
                     os.rename(
                         localpath + "/" + filename + ".zip",
-                        archived_path + "/" + filename + ".zip",
+                        error_path + "/" + filename + ".zip",
                     )
                     os.rename(
                         localpath + "/" + filename + ".json",
-                        archived_path + "/" + filename + ".json",
+                        error_path + "/" + filename + ".json",
                     )
-                    logging.info(f"FileMode - parsing {item} - Moved to Archive")
+                    f = open(error_path + "/" + filename + ".log", "a")
+                    f.write(str(e))
+                    f.write(traceback.format_exc())
+                    f.close()
 
     # Process folder mode
     if ingestor_config["method"] == "folder":
@@ -380,74 +396,85 @@ def process_ingestor(ingestor):
         # Loop through date/time structured directories
         for item in os.listdir(localpath):
             if os.path.isdir(os.path.join(localpath, item)):
-
-                # Check if already processed and define datetime value of directory
-                dirParts = item.split("-")
-                if dirParts[0] != "P" and dirParts[0] != "S" and dirParts[0] != "E":
-                    # Calculate date/time for the folder
-                    if len(dirParts) == 3:
-                        folderDateTime = datetime.datetime.strptime(
-                            item, "%Y-%m-%d"
-                        ) + datetime.timedelta(days=1)
-                    elif len(dirParts) == 4:
-                        folderDateTime = datetime.datetime.strptime(
-                            item, "%Y-%m-%d-%H"
-                        ) + datetime.timedelta(hours=1)
-                    else:
-                        logging.info("Failed to parse {item}")
-                    # Offset datetime for 1 min to give any writing time to finish
-                    folderDateTime = folderDateTime + datetime.timedelta(minutes=1)
-                    currentDateTime = datetime.datetime.utcnow()
-                    folderTimeDelta = (currentDateTime - folderDateTime).total_seconds()
-
-                    # Folder time has passed, process
-                    if folderTimeDelta > 0:
-
-                        if ingestor_config["type"] == "slack":
-                            logging.info(f"FolderMode - Parsing {item} ({ingestor}) Slack")
-                            meta_chat = slack_parse_chat_metadata(localpath, item)
-                        elif ingestor_config["type"] == "telegram":
-                            logging.info(f"FolderMode - Parsing {item} ({ingestor}) Telegram")
-                            meta_chat = telegram_parse_chat_metadata(localpath, item)
+                try:    
+                    # Check if already processed and define datetime value of directory
+                    dirParts = item.split("-")
+                    if dirParts[0] != "P" and dirParts[0] != "S" and dirParts[0] != "E":
+                        # Calculate date/time for the folder
+                        if len(dirParts) == 3:
+                            folderDateTime = datetime.datetime.strptime(
+                                item, "%Y-%m-%d"
+                            ) + datetime.timedelta(days=1)
+                        elif len(dirParts) == 4:
+                            folderDateTime = datetime.datetime.strptime(
+                                item, "%Y-%m-%d-%H"
+                            ) + datetime.timedelta(hours=1)
                         else:
-                            logging.info(f"FolderMode - Skipping {item} ({ingestor}) UNKNOWN MODE")
+                            logging.info("Failed to parse {item}")
+                        # Offset datetime for 1 min to give any writing time to finish
+                        folderDateTime = folderDateTime + datetime.timedelta(minutes=1)
+                        currentDateTime = datetime.datetime.utcnow()
+                        folderTimeDelta = (currentDateTime - folderDateTime).total_seconds()
+
+                        # Folder time has passed, process
+                        if folderTimeDelta > 0:
+
+                            if ingestor_config["type"] == "slack":
+                                logging.info(f"FolderMode - Parsing {item} ({ingestor}) Slack")
+                                meta_chat = slack_parse_chat_metadata(localpath, item)
+                            elif ingestor_config["type"] == "telegram":
+                                logging.info(f"FolderMode - Parsing {item} ({ingestor}) Telegram")
+                                meta_chat = telegram_parse_chat_metadata(localpath, item)
+                            else:
+                                logging.info(f"FolderMode - Skipping {item} ({ingestor}) UNKNOWN MODE")
 
 
-                        # No data to deal with, skip folder
-                        if meta_chat is None:
-                            logging.info(f"FolderMode - Skipping {item} - meta_chat empty")
+                            # No data to deal with, skip folder
+                            if meta_chat is None:
+                                logging.info(f"FolderMode - Skipping {item} - meta_chat empty")
+                                os.rename(
+                                    os.path.join(localpath, item),
+                                    os.path.join(localpath, "S-" + item),
+                                )
+                                continue
+
+                            # Zip up content of directory to a temp file
+                            temp_filename = os.path.join(
+                                tmpFolder, ingestor + str(folderDateTime.timestamp()) + ".zip"
+                            )
+                            with zipfile.ZipFile(temp_filename, "w") as archive:
+                                zipFolder(archive, os.path.join(localpath, item))
+
+                            content_meta = start_metadata_content(
+                                ingestor_config,
+                                meta_chat
+                            )
+
+                            out_file = common.add_to_pipeline(
+                                temp_filename,
+                                content_meta,
+                                recorder_meta,
+                                stage_path,
+                                output_path,
+                            )
+                            logging.info(f"FolderMode - Output {item} - Write file {out_file}")
+
+                            # Rename folder to prevent re-processing
                             os.rename(
                                 os.path.join(localpath, item),
-                                os.path.join(localpath, "S-" + item),
+                                os.path.join(localpath, "P-" + item),
                             )
-                            continue
-
-                        # Zip up content of directory to a temp file
-                        temp_filename = os.path.join(
-                            tmpFolder, ingestor + str(folderDateTime.timestamp()) + ".zip"
-                        )
-                        with zipfile.ZipFile(temp_filename, "w") as archive:
-                            zipFolder(archive, os.path.join(localpath, item))
-
-                        content_meta = start_metadata_content(
-                            ingestor_config,
-                            meta_chat
-                        )
-
-                        out_file = common.add_to_pipeline(
-                            temp_filename,
-                            content_meta,
-                            recorder_meta,
-                            stage_path,
-                            output_path,
-                        )
-                        logging.info(f"FolderMode - Output {item} - Write file {out_file}")
-
-                        # Rename folder to prevent re-processing
-                        os.rename(
-                            os.path.join(localpath, item),
-                            os.path.join(localpath, "P-" + item),
-                        )
+                except Exception as e:
+                    logging.exception(e)
+                    logging.error(f"FolderMode - Processing {item} - " + str(e))
+                    os.rename(
+                        os.path.join(localpath, item),
+                        os.path.join(localpath, "E-" + item),
+                    )
+                    f = open(os.path.join(localpath, "E-" + item, "/error.log"), "a")
+                    f.write(str(e))
+                    f.write(traceback.format_exc())
+                    f.close()
 
 # Main loop
 while True:
