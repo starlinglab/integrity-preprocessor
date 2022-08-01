@@ -33,6 +33,8 @@ LOG_FILE = os.environ.get("LOG_FILE", None)
 DATA_JSON_PATH = os.environ.get("DATA_FILE")
 CONFIG_FILE = os.environ.get("CONFIG_FILE")
 PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
+HOSTNAME = os.environ.get("HOSTNAME")
+
 
 LOOP_INTERVAL = 60
 FAIL_DELAY = 10
@@ -57,14 +59,17 @@ if os.path.exists(CONFIG_FILE):
 TARGET_PATH_TMP = {}
 TARGET_PATH = {}
 TARGET_ROOT_PATH = {}
+TARGET_AUTHOR = {}
 
 # Process collections in config
 if "collections" in config_data:
     for aid in config_data["collections"]:
-        # Create temporary folder to stage files before moving them into action folder
+        TARGET_AUTHOR[aid] = config_data["collections"][aid]["author"]
         TARGET_ROOT_PATH[aid] = config_data["collections"][aid]["target_path"]
         TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")
         TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], "input")
+
+        # Create temporary folder to stage files before moving them into action folder
         if not os.path.exists(TARGET_PATH_TMP[aid]):
             os.makedirs(TARGET_PATH_TMP[aid])
         logging.info(f"Loaded collection archive {aid}")
@@ -94,8 +99,28 @@ default_content = {
 }
 
 
+def download_file(url, local_filename):
+    # NOTE the stream=True parameter below
+    with requests.get(url, stream=True) as r:
+        if r.status_code == 200:
+            with open(local_filename, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    # If you have chunk encoded response uncomment if
+                    # and set chunk_size parameter to None.
+                    # if chunk:
+                    f.write(chunk)
+        else:
+            return -1
+    return 1
+
+
 def generate_metadata_content(
-    meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created
+    meta_crawl_config,
+    meta_crawl_data,
+    meta_additional,
+    meta_extra,
+    meta_date_created,
+    author,
 ):
 
     extras = deepcopy(meta_extra)
@@ -112,6 +137,8 @@ def generate_metadata_content(
     private["crawlData"] = meta_crawl_data
 
     meta_content = deepcopy(default_content)
+    if author:
+        meta_content["author"] = author
 
     create_date = meta_date_created.split("T")[0]
     meta_content["name"] = f"Web archive on {create_date}"
@@ -273,7 +300,8 @@ while True:
         if aid in TARGET_PATH:
             current_collection = aid
         else:
-            current_collection = "default"
+            # Skip because archive is not defined in collection file
+            continue
 
         logging.info("Working on archive %s", aid)
 
@@ -345,8 +373,9 @@ while True:
 
             crawl_json = r.json()
 
-            wacz_path = os.path.join(
-                SOURCE_PATH, BUCKET, crawl_json["resources"][0]["name"]
+            wacz_url = f"https://{HOSTNAME}" + crawl_json["resources"][0]["path"]
+            wacz_path = (
+                TARGET_ROOT_PATH[current_collection] + "/tmp/" + crawl["cid"] + ".wacz"
             )
 
             if os.path.exists(wacz_path + ".done"):
@@ -362,15 +391,14 @@ while True:
                 new_last_check = finish_date.timestamp()
                 new_crawls.append(crawl["id"])
                 continue
+            download_file(wacz_url, wacz_path)
+            logging.info(f"Downloaded {wacz_path}")
 
-            i = 1
-            while not os.path.exists(wacz_path):
-                logging.error(
-                    "WACZ not available at path '%s' (tries: %d)", wacz_path, i
-                )
-                metrics["wacz_not_found"] += 1
-                i += 1
-                time.sleep(FAIL_DELAY)
+            if not os.path.exists(wacz_path):
+                Path(wacz_path + ".done").touch()
+                Path(wacz_path + ".error").touch()
+                logging.error("WACZ not available at path '%s'", wacz_path)
+                continue
 
             # Meta data collection and generation
             recorder_meta = common.get_recorder_meta("browsertrix")
@@ -402,6 +430,7 @@ while True:
                 meta_additional,
                 meta_extra,
                 meta_date_created,
+                TARGET_AUTHOR[current_collection],
             )
 
             i = 1
@@ -423,6 +452,7 @@ while True:
 
             logging.info("Successfully processed crawl %s", crawl["id"])
             Path(wacz_path + ".done").touch()
+            os.remove(wacz_path)
 
             metrics["processed_crawls"] += 1
             # Update data since processing of crawl was successful

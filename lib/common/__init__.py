@@ -9,8 +9,9 @@ import datetime
 import subprocess
 import hashlib
 import logging
-
 import integrity_recorder_id
+import urllib.parse
+from warcio.archiveiterator import ArchiveIterator
 
 integrity_recorder_id.build_recorder_id_json()
 
@@ -115,6 +116,20 @@ def sha256sum(filename):
         readable_hash = hashlib.sha256(bytes).hexdigest()
         return readable_hash
 
+
+def extract_wacz_user_agent(wacz_path):
+    with ZipFile(wacz_path, "r") as wacz:
+        warc = next((s for s in wacz.namelist() if s.endswith(".warc.gz")), None)
+        if warc is None:
+            return None
+
+        with wacz.open(warc) as warcf:
+            for record in ArchiveIterator(warcf):
+                if record.rec_type == "request":
+                    return record.http_headers.get_header("User-Agent")
+    return None
+
+
 def parse_wacz_data_extra(wacz_path):
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
@@ -131,12 +146,16 @@ def parse_wacz_data_extra(wacz_path):
                 extras["localsignPublicKey"] = d["signedData"]["publicKey"]
                 extras["localsignSignaturey"] = d["signedData"]["signature"]
             else:
-                logging.warning(f"{wacz_path} WACZ missing signature ")
+                logging.warning(f"{wacz_path} WACZ missing signature")
+
+        user_agent = extract_wacz_user_agent(wacz_path)
 
         d = json.loads(wacz.read("datapackage.json"))
         extras["waczVersion"] = d["wacz_version"]
         extras["software"] = d["software"]
         extras["dateCrawled"] = d["created"]
+        if user_agent:
+            extras["userAgentCrawled"] = user_agent
 
         if "title" in d:
             extras["waczTitle"] = d["title"]
@@ -241,6 +260,7 @@ def parse_proofmode_data(proofmode_path):
                 source_filename = os.path.basename(
                     json_metadata["proofs"][0]["File Path"]
                 )
+                source_filename = urllib.parse.unquote_plus(source_filename)
                 result[source_filename] = json_metadata
 
                 # Verify data signature (usually JPEG)
