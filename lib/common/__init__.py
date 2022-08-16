@@ -6,7 +6,8 @@ from zipfile import ZipFile
 import datetime
 import hashlib
 import logging
-
+import integrity_recorder_id
+import urllib.parse
 from warcio.archiveiterator import ArchiveIterator
 
 import validate
@@ -213,8 +214,11 @@ def parse_proofmode_data(proofmode_path):
                 source_filename = os.path.basename(
                     json_metadata["proofs"][0]["File Path"]
                 )
+                source_filename = urllib.parse.unquote_plus(source_filename)
                 result[source_filename] = json_metadata
 
             result["dateCreate"] = date_create.isoformat()
+
+    shutil.rmtree(this_tmp_dir)
 
     return result

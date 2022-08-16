@@ -33,6 +33,8 @@ LOG_FILE = os.environ.get("LOG_FILE", None)
 DATA_JSON_PATH = os.environ.get("DATA_FILE")
 CONFIG_FILE = os.environ.get("CONFIG_FILE")
 PROMETHEUS_FILE = os.environ.get("PROMETHEUS_FILE")
+HOSTNAME = os.environ.get("HOSTNAME")
+
 
 LOOP_INTERVAL = 60
 FAIL_DELAY = 10
@@ -57,14 +59,17 @@ if os.path.exists(CONFIG_FILE):
 TARGET_PATH_TMP = {}
 TARGET_PATH = {}
 TARGET_ROOT_PATH = {}
+TARGET_AUTHOR = {}
 
 # Process collections in config
 if "collections" in config_data:
     for aid in config_data["collections"]:
-        # Create temporary folder to stage files before moving them into action folder
+        TARGET_AUTHOR[aid] = config_data["collections"][aid]["author"]
         TARGET_ROOT_PATH[aid] = config_data["collections"][aid]["target_path"]
         TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")
         TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], "input")
+
+        # Create temporary folder to stage files before moving them into action folder
         if not os.path.exists(TARGET_PATH_TMP[aid]):
             os.makedirs(TARGET_PATH_TMP[aid])
         logging.info(f"Loaded collection archive {aid}")
@@ -110,7 +115,12 @@ def download_file(url, local_filename):
 
 
 def generate_metadata_content(
-    meta_crawl_config, meta_crawl_data, meta_additional, meta_extra, meta_date_created
+    meta_crawl_config,
+    meta_crawl_data,
+    meta_additional,
+    meta_extra,
+    meta_date_created,
+    author,
 ):
 
     extras = deepcopy(meta_extra)
@@ -127,6 +137,8 @@ def generate_metadata_content(
     private["crawlData"] = meta_crawl_data
 
     meta_content = deepcopy(default_content)
+    if author:
+        meta_content["author"] = author
 
     create_date = meta_date_created.split("T")[0]
     meta_content["name"] = f"Web archive on {create_date}"
@@ -288,7 +300,8 @@ while True:
         if aid in TARGET_PATH:
             current_collection = aid
         else:
-            current_collection = "default"
+            # Skip because archive is not defined in collection file
+            continue
 
         logging.info("Working on archive %s", aid)
 
@@ -360,9 +373,7 @@ while True:
 
             crawl_json = r.json()
 
-            wacz_url = crawl_json["resources"][0]["path"]
-            # Crop to ? since signaures method fail but public works
-            wacz_url = wacz_url[: wacz_url.find("?")]
+            wacz_url = f"https://{HOSTNAME}" + crawl_json["resources"][0]["path"]
             wacz_path = (
                 TARGET_ROOT_PATH[current_collection] + "/tmp/" + crawl["cid"] + ".wacz"
             )
@@ -419,6 +430,7 @@ while True:
                 meta_additional,
                 meta_extra,
                 meta_date_created,
+                TARGET_AUTHOR[current_collection],
             )
 
             i = 1
