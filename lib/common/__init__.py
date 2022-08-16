@@ -10,7 +10,6 @@ import subprocess
 import hashlib
 import logging
 import integrity_recorder_id
-import urllib.parse
 from warcio.archiveiterator import ArchiveIterator
 
 integrity_recorder_id.build_recorder_id_json()
