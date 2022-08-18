@@ -15,9 +15,7 @@ import csv
 from watchdog.observers import Observer
 
 # Kludge
-sys.path.append(
-    os.path.dirname(os.path.realpath(__file__)) + "/../lib"
-)
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import integrity_recorder_id
 import common
 
@@ -27,7 +25,6 @@ CONFIG_FILE = os.environ.get("CONFIG_FILE")
 
 logging = common.logging
 logging.info("Started folder preprocessor")
-
 
 
 default_author = {
@@ -45,7 +42,13 @@ default_content = {
 
 
 def generate_metadata_content(
-    meta_date_created, sourcePath, uploader_name, meta_extras, meta_method
+    meta_date_created,
+    sourcePath,
+    uploader_name,
+    meta_extras,
+    meta_method,
+    author,
+    index_data,
 ):
 
     # guess mime type
@@ -56,6 +59,9 @@ def generate_metadata_content(
     private = {}
 
     meta_content = default_content
+
+    if author:
+        meta_content["author"] = author
 
     meta_content["description"] = f"{meta_method.title()} document "
 
@@ -79,14 +85,25 @@ def generate_metadata_content(
     private["uploadDirectory"] = os.path.dirname(sourcePath)
     private["uploadFilename"] = os.path.basename(sourcePath)
 
+    if index_data:
+        if "description" in index_data:
+            meta_content["description"] = index_data["description"]
+        if "sourceId" in index_data:
+            meta_content["sourceId"] = index_data["sourceId"]
+        if "meta_data_private" in index_data:
+            for item in index_data["meta_data_private"]:
+                private[item] = index_data["meta_data_private"][item]
+        if "meta_data_public" in index_data:
+            for item in index_data["meta_data_public"]:
+                extras[item] = index_data["meta_data_public"][item]
+
     meta_content["extras"] = extras
     meta_content["private"] = private
 
-    return {"contentMetadata": meta_content}
+    return meta_content
 
 
 metdata_file_timestamp = -1
-
 
 
 class watch_folder:
@@ -112,13 +129,27 @@ class watch_folder:
         logging.info("Watching " + self.path + " for " + ",".join(patterns))
 
     def on_created(self, event):
+        # Skip index.json if it exists
+
+        if os.path.basename(event.src_path) == "index.json":
+            logging.info(f"Skipping index.json file")
+            return
+
         logging.info(f"Starting Processing of file {event.src_path}")
         sha256asset = common.sha256sum(event.src_path)
 
         target = self.config["targetPath"]
+
         extractName = False
+        extractNameCharacters = " ___ "
         if "extractName" in self.config:
             extractName = self.config["extractName"]
+            if "extractNameCharacters" in self.config:
+                extractNameCharacters = self.config["extractNameCharacters"]
+
+        author = None
+        if "author" in self.config:
+            author = self.config["author"]
 
         meta_method = "Generic"
         if "method" in self.config:
@@ -132,14 +163,16 @@ class watch_folder:
 
         asset_filename = event.src_path
         meta_uploader_name = ""
+        index_filename = ""
         if extractName:
             fileName = os.path.basename(event.src_path)
-
-            tmp = fileName.split(" ___ ", 2)
+            tmp = fileName.split(extractNameCharacters, 2)
             if len(tmp) == 2:
                 meta_uploader_name = tmp[0]
+                index_filename = tmp[1]
             else:
                 meta_uploader_name = ""
+                index_filename = tmp[0]
 
         bundleFileName = os.path.join(stage_path, sha256asset + ".zip")
 
@@ -153,15 +186,31 @@ class watch_folder:
             logging.info(f"{asset_filename} Processing file as a ProofMode")
             extras = common.parse_proofmode_data(asset_filename)
 
+        # read index file if it exists
+        source_path = os.path.dirname(asset_filename)
+
+        if os.path.exists(f"{source_path}/index.json"):
+            index_file = open(f"{source_path}/index.json", "r")
+            index = json.load(index_file)
+            index_data = None
+            for item in index:
+                if item["filename"] == index_filename:
+                    index_data = item
+                    break
         content_meta = generate_metadata_content(
-            meta_date_create, asset_filename, meta_uploader_name, extras, meta_method
+            meta_date_create,
+            asset_filename,
+            meta_uploader_name,
+            extras,
+            meta_method,
+            author,
+            index_data,
         )
         recorder_meta = common.get_recorder_meta("folder")
-
-        
-        out_file = common.add_to_pipeline(asset_filename, content_meta, recorder_meta, stage_path, output_path)
+        out_file = common.add_to_pipeline(
+            asset_filename, content_meta, recorder_meta, stage_path, output_path
+        )
         logging.info(f"{asset_filename} Created new asset {out_file}")
-
 
     def stop(self):
         self.observer.stop()
@@ -173,7 +222,7 @@ scan_folder = []
 with open(CONFIG_FILE) as f:
     config = json.load(f)
     for item in config:
-        scan_folder.append(watch_folder(config[item]))        
+        scan_folder.append(watch_folder(config[item]))
 
 try:
     while True:
