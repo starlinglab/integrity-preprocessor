@@ -2,7 +2,7 @@
     "organization_id": "hyphacoop",
     "collection_id": "my-collection",
     "author": {
-        "type": "Person",
+        "@type": "Person",
         "identifier": "https://hypha.coop",
         "name": "Benedict Lau"
     },
