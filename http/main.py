@@ -184,7 +184,14 @@ async def data_from_multipart(request):
 
 async def write_file(part):
     # Write file in temporary directory, named after epoch in milliseconds
-    tmp_file = os.path.join(TMP_PATH, str(int(time.time() * 1000))) + ".jpg"
+    if part.filename:
+        tmp_file = (
+            os.path.join(TMP_PATH, str(int(time.time() * 1000)))
+            + os.path.splitext(part.filename)[1]
+        )
+    else:
+        # No filename, assume it's a JPEG
+        tmp_file = os.path.join(TMP_PATH, str(int(time.time() * 1000))) + ".jpg"
 
     # Mode "x" will throw an error if a file with the same name already exists.
     with open(tmp_file, "xb") as f:
@@ -206,7 +213,6 @@ async def create(request):
 
         # Extract data from post and create metadata files
         data, meta_content, meta_recorder = await data_from_multipart(request)
-        meta = data["meta"]
         meta_raw = data["meta_raw"]
         sigs = data["signature"]
         asset_path = data["asset_fullpath"]
