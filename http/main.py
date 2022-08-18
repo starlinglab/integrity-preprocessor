@@ -34,9 +34,12 @@ if not DEBUG:
 
 dotenv.load_dotenv()
 
-JWT_SECRET = os.environ.get("JWT_SECRET")
-LOCAL_PATH = os.environ.get("LOCAL_PATH")
-OUTPUT_PATH = os.environ.get("OUTPUT_PATH")
+JWT_SECRET = os.environ["JWT_SECRET"]
+LOCAL_PATH = os.environ["LOCAL_PATH"]
+OUTPUT_PATH = os.environ["OUTPUT_PATH"]
+
+HOST = os.environ.get("HOST", "127.0.0.1")
+PORT = int(os.environ.get("PORT", "8080"))
 
 TMP_PATH = os.path.join(LOCAL_PATH, "tmp")
 ARCHIVE_PATH = os.path.join(LOCAL_PATH, "archive")
@@ -268,4 +271,4 @@ app = web.Application(
 app.add_routes([web.post("/v1/assets/create", create)])
 
 if __name__ == "__main__":
-    web.run_app(app)
+    web.run_app(app, host=HOST, port=PORT)
