@@ -18,6 +18,7 @@ from Crypto.Signature import DSS
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from eth_keys.datatypes import PublicKey
+from eth_keys.exceptions import BadSignature
 
 
 class StarlingCapture(Validate):
@@ -231,8 +232,13 @@ class StarlingCapture(Validate):
     @staticmethod
     def _validate_zion_classic(meta_hash_bytes: bytes, signature: dict) -> bool:
         message = encode_defunct(meta_hash_bytes)
-        # pylint: disable=no-value-for-parameter
-        addr = Account.recover_message(message, signature="0x" + signature["signature"])
+        try:
+            # pylint: disable=no-value-for-parameter
+            addr = Account.recover_message(
+                message, signature="0x" + signature["signature"]
+            )
+        except BadSignature:
+            return False
         # Signer's Ethereum address
         pk = PublicKey.from_compressed_bytes(
             bytes.fromhex(signature["publicKey"][-66:])
@@ -253,8 +259,13 @@ class StarlingCapture(Validate):
     @staticmethod
     def _validate_zion(meta_hash_hex: str, signature: dict) -> bool:
         message = encode_defunct(text=meta_hash_hex)
-        # pylint: disable=no-value-for-parameter
-        addr = Account.recover_message(message, signature="0x" + signature["signature"])
+        try:
+            # pylint: disable=no-value-for-parameter
+            addr = Account.recover_message(
+                message, signature="0x" + signature["signature"]
+            )
+        except BadSignature:
+            return False
         # Signer's Ethereum address
         pk = PublicKey.from_compressed_bytes(
             bytes.fromhex(signature["publicKey"][-66:])
@@ -277,8 +288,11 @@ class StarlingCapture(Validate):
         # Next verify Zion sig of session key
         # Similar to _validate_zion
         message = encode_defunct(text=sha256(session_public_key.encode()).hexdigest())
-        # pylint: disable=no-value-for-parameter
-        addr = Account.recover_message(message, signature="0x" + zion_session_sig)
+        try:
+            # pylint: disable=no-value-for-parameter
+            addr = Account.recover_message(message, signature="0x" + zion_session_sig)
+        except BadSignature:
+            return False
         # Signer's Ethereum address
         pk = PublicKey.from_compressed_bytes(
             bytes.fromhex(signature["publicKey"][-66:])
