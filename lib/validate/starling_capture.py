@@ -116,7 +116,7 @@ class StarlingCapture(Validate):
                 self.json.append(
                     {
                         "provider": self.provider,
-                        "algorithm": "starling-capture-AndroidOpenSSL",
+                        "algorithm": "starling-capture-androidopenssl",
                         "signature": sig["signature"],
                         "publicKey": sig["publicKey"],
                         "authenticatedMessage": self.meta_hash,
@@ -137,7 +137,7 @@ class StarlingCapture(Validate):
                         self.json.append(
                             {
                                 "provider": self.provider,
-                                "algorithm": "starling-capture-Zion",
+                                "algorithm": "starling-capture-zion",
                                 "signature": sig["signature"],
                                 "publicKey": sig["publicKey"],
                                 "authenticatedMessage": self.meta_hash,
@@ -148,7 +148,7 @@ class StarlingCapture(Validate):
                         self.json.append(
                             {
                                 "provider": self.provider,
-                                "algorithm": "starling-capture-Zion-classic",
+                                "algorithm": "starling-capture-zion-classic",
                                 "signature": sig["signature"],
                                 "publicKey": sig["publicKey"],
                                 "authenticatedMessage": self.meta_hash,
@@ -168,7 +168,7 @@ class StarlingCapture(Validate):
                     self.json.append(
                         {
                             "provider": self.provider,
-                            "algorithm": "starling-capture-Zion-session-classic",
+                            "algorithm": "starling-capture-zion-session-classic",
                             "signature": sig["signature"],
                             "publicKey": sig["publicKey"],
                             "authenticatedMessage": self.meta_hash,
@@ -186,7 +186,7 @@ class StarlingCapture(Validate):
                     self.json.append(
                         {
                             "provider": self.provider,
-                            "algorithm": "starling-capture-Zion-session",
+                            "algorithm": "starling-capture-zion-session",
                             "signature": sig["signature"],
                             "publicKey": sig["publicKey"],
                             "authenticatedMessage": self.meta_hash,
@@ -276,7 +276,7 @@ class StarlingCapture(Validate):
 
         # Next verify Zion sig of session key
         # Similar to _validate_zion
-        message = sha256(session_public_key.encode()).hexdigest()
+        message = encode_defunct(text=sha256(session_public_key.encode()).hexdigest())
         # pylint: disable=no-value-for-parameter
         addr = Account.recover_message(message, signature="0x" + zion_session_sig)
         # Signer's Ethereum address
