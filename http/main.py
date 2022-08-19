@@ -48,6 +48,11 @@ os.makedirs(TMP_PATH, exist_ok=True)
 os.makedirs(ARCHIVE_PATH, exist_ok=True)
 
 
+class ClientError(Exception):
+    # Raised to trigger status code 400 responses
+    pass
+
+
 @contextmanager
 def error_handling_and_response():
     """Context manager to wrap the core of a handler implementation with error handlers.
@@ -58,13 +63,14 @@ def error_handling_and_response():
     try:
         yield response
     except Exception as err:
-        print(traceback.format_exc())
         response["error"] = f"{err}"
         response["status"] = "error"
-        if type(err) == ValueError:
+        if isinstance(err, ClientError):
             response["status_code"] = 400
         else:
             response["status_code"] = 500
+            # Print error info for unexpected errors
+            print(traceback.format_exc())
 
 
 global_meta_recorder = None
@@ -184,7 +190,7 @@ async def data_from_multipart(request):
 
 async def write_file(part):
     # Write file in temporary directory, named after epoch in milliseconds
-    if part.filename:
+    if part.filename and "." in part.filename:
         tmp_file = (
             os.path.join(TMP_PATH, str(int(time.time() * 1000)))
             + os.path.splitext(part.filename)[1]
@@ -209,18 +215,26 @@ async def create(request):
     with error_handling_and_response() as response:
         jwt = request["jwt_payload"]
         if not jwt.get("collection_id") or not jwt.get("organization_id"):
-            raise ValueError("JWT is missing collection or organization ID")
+            raise ClientError("JWT is missing collection or organization ID")
 
         # Extract data from post and create metadata files
         data, meta_content, meta_recorder = await data_from_multipart(request)
-        meta_raw = data["meta_raw"]
-        sigs = data["signature"]
-        asset_path = data["asset_fullpath"]
+        meta_raw = data.get("meta_raw")
+        sigs = data.get("signature")
+        asset_path = data.get("asset_fullpath")
+
+        # Make sure all sections actually existed in multipart
+        if meta_raw is None:
+            raise ClientError("No metadata uploaded")
+        if sigs is None:
+            raise ClientError("No signatures uploaded")
+        if asset_path is None:
+            raise ClientError("No asset uploaded")
 
         # Validate the data
         sc = validate.StarlingCapture(asset_path, meta_raw, sigs)
         if not sc.validate():
-            raise Exception("Hashes or signatures did not validate")
+            raise ClientError("Hashes or signatures did not validate")
 
         asset_hash = sha256sum(asset_path)
         tmp_zip_path = os.path.join(LOCAL_PATH, asset_hash) + ".zip"
