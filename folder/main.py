@@ -48,7 +48,7 @@ def generate_metadata_content(
     meta_extras,
     meta_method,
     author,
-    index_data,
+    index_data
 ):
 
     # guess mime type
@@ -189,6 +189,8 @@ class watch_folder:
         # read index file if it exists
         source_path = os.path.dirname(asset_filename)
 
+        index_data = None
+
         if os.path.exists(f"{source_path}/index.json"):
             index_file = open(f"{source_path}/index.json", "r")
             index = json.load(index_file)
@@ -204,7 +206,7 @@ class watch_folder:
             extras,
             meta_method,
             author,
-            index_data,
+            index_data
         )
         recorder_meta = common.get_recorder_meta("folder")
         out_file = common.add_to_pipeline(
