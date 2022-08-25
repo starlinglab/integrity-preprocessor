@@ -173,6 +173,9 @@ async def data_from_multipart(request):
                 "targetProvider"
             ] = await part.text()
         elif part.name == "tag":
+            if DEBUG:
+                # No meta_recorder data available
+                continue
             service = next(
                 (
                     s
