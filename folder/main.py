@@ -1,6 +1,7 @@
 import copy
 import io
 import datetime
+from operator import truediv
 import dotenv
 import hashlib
 import json
@@ -105,6 +106,34 @@ def generate_metadata_content(
 
 metdata_file_timestamp = -1
 
+def _mkdir_recursive(path, uid,gid):
+    sub_path = os.path.dirname(path)
+    if not os.path.exists(sub_path):
+        _mkdir_recursive(sub_path,uid,gid)
+    if not os.path.exists(path):
+        os.mkdir(path)
+        os.chown(path, uid, gid)
+        logging.info("Creating folder " + path)
+
+def _check_if_file_is_open(filename, lock_file):
+
+    if lock_file != "":
+        if os.path.exists(lock_file):
+            return True
+
+    for entry_name in os.listdir("/proc"):
+        if entry_name.isnumeric():
+            entry_path = os.path.join("/proc", entry_name,"fd")
+            for file_name in os.listdir(entry_path):
+                if os.path.exists(os.path.join(entry_path,file_name)):
+                    if filename == os.readlink(os.path.join(entry_path,file_name)):
+                        return True
+    return False
+
+def _wait_for_file_to_close(filename, lock_file):
+    while(_check_if_file_is_open(filename,lock_file)):
+        print (f"Waiting on file {filename}")
+        time.sleep(10)
 
 class watch_folder:
     "Class defining a scan folder"
@@ -112,10 +141,7 @@ class watch_folder:
 
     def __init__(self, conf):
         if os.path.exists(conf["sourcePath"]) == False:
-            os.mkdir(conf["sourcePath"])
-            os.chown(conf["sourcePath"], 1001, 1001)
-            logging.info("Creating folder " + conf["sourcePath"])
-        os.chown(conf["sourcePath"], 1001, 1001)
+            _mkdir_recursive(conf["sourcePath"],1001,1001)
         self.path = conf["sourcePath"]
         self.config = conf
         patterns = conf["allowedPatterns"]
@@ -138,6 +164,10 @@ class watch_folder:
         logging.info(f"Starting Processing of file {event.src_path}")
         sha256asset = common.sha256sum(event.src_path)
 
+        lock_file = "" 
+        if "lockFile" in self.config:
+            lock_file = self.config["lockFile"]
+        _wait_for_file_to_close(event.src_path,lock_file)        
         target = self.config["targetPath"]
 
         extractName = False
