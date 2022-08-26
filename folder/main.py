@@ -126,9 +126,12 @@ def _check_if_file_is_open(filename, lock_file):
             entry_path = os.path.join("/proc", entry_name,"fd")
             for file_name in os.listdir(entry_path):
                 if os.path.exists(os.path.join(entry_path,file_name)):
-                    if filename == os.readlink(os.path.join(entry_path,file_name)):
-                        return True
-    return False
+                    try:
+
+                        if filename == os.readlink(os.path.join(entry_path,file_name)):
+                            return True
+                    except:
+                        pass
 
 def _wait_for_file_to_close(filename, lock_file):
     while(_check_if_file_is_open(filename,lock_file)):
