@@ -41,7 +41,10 @@ with open(filename, newline="", encoding="utf8") as csvfile:
             column_index = 0
             for item in row:
                 if len(item) > 1 and item[1] == "[":
-                    json_metadata[heading[column_index]] = ast.literal_eval(item)
+                    try:
+                        json_metadata[heading[column_index]] = ast.literal_eval(item)
+                    except:
+                        json_metadata[heading[column_index]] = item
                 else:
                     json_metadata[heading[column_index]] = item
                 column_index += 1
