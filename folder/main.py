@@ -1,7 +1,6 @@
 import copy
 import io
 import datetime
-from operator import truediv
 import dotenv
 import hashlib
 import json
