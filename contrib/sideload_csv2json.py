@@ -37,6 +37,8 @@ with open(filename, newline="", encoding="utf8") as csvfile:
 
             countlines = countlines + 1
 
+            if countlines < startrow:
+                continue
             json_metadata = deepcopy(json_metadata_template)
             column_index = 0
             for item in row:
