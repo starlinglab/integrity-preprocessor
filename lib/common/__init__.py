@@ -223,10 +223,17 @@ def parse_proofmode_data(proofmode_path):
                 with proofmode.open(file) as f:
                     json_meta = json.load(f)
 
+                pgp = proofmode.read(base_file_name + ".asc").decode("utf-8")
                 source_filename = os.path.basename(json_meta["File Path"])
                 file_hash = json_meta["File Hash SHA256"]
 
-                result[source_filename] = json_meta
+                result_data = {"proofs": json_meta}
+                result_data["pgpSignature"] = pgp
+                result_data["pgpPublicKey"] = public_pgp
+                result_data["sha256hash"] = file_hash
+                result_data["dateCreate"] = current_date_create.isoformat()
+
+                result[source_filename] = result_data
 
                 # Verify data signature (usually JPEG)
                 data_path = proofmode.extract(source_filename, path=this_tmp_dir)
