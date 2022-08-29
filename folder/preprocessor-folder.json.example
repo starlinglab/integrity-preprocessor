@@ -26,6 +26,11 @@
         "sourcePath": "/root/RandomFolder",
         "targetPath": "/mnt/integrity_store/starling/internal/starling-lab-test/test-folder",
         "allowedPatterns": ["*.wav"],
-        "method": "folder"
+        "method": "folder",
+        "author": {
+            "@type": "Organization",
+            "identifier": "https://example.org",
+            "name": "Example"
+        }
     }
 }
