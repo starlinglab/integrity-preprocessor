@@ -12,7 +12,7 @@ config_filename = "Starling-Caption-Credit-config.json"
 with open(config_filename, "r") as config_file:
     config = json.load(config_file)
 
-with open(filename, newline="\n", encoding="utf8") as csvfile:
+with open(filename, newline="", encoding="utf8") as csvfile:
     csv_reader = csv.reader(
         csvfile,
         delimiter=",",
