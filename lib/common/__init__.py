@@ -7,7 +7,6 @@ import datetime
 import hashlib
 import logging
 import integrity_recorder_id
-import urllib.parse
 from warcio.archiveiterator import ArchiveIterator
 
 import validate
@@ -168,54 +167,25 @@ def parse_proofmode_data(proofmode_path):
             if date_create is None or current_date_create < date_create:
                 date_create = current_date_create
 
-            if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
+            if os.path.splitext(file)[1] == ".json" and "batchproof" not in file:
 
                 base_file_name = os.path.splitext(file)[0]
                 base_file_name = os.path.splitext(base_file_name)[0]
 
-                data = proofmode.read(file).decode("utf-8")
+                with proofmode.open(file) as f:
+                    json_meta = json.load(f)
 
                 pgp = proofmode.read(base_file_name + ".asc").decode("utf-8")
+                source_filename = os.path.basename(json_meta["File Path"])
+                file_hash = json_meta["File Hash SHA256"]
 
-                heading = None
+                result_data = {"proofs": json_meta}
+                result_data["pgpSignature"] = pgp
+                result_data["pgpPublicKey"] = public_pgp
+                result_data["sha256hash"] = file_hash
+                result_data["dateCreate"] = current_date_create.isoformat()
 
-                # Convert CSV to JSON
-                csv_reader = csv.reader(data.splitlines(), delimiter=",")
-                json_metadata_template = {}
-                json_metadata = {"proofs": []}
-                for row in csv_reader:
-                    json_metadata_row = {}
-                    # Read Heading
-                    if heading == None:
-                        column_index = 0
-                        for col_name in row:
-                            json_metadata_template[col_name] = ""
-                            column_index += 1
-                        # Add dumy Lat/Long in case proof mode does not generate them
-                        json_metadata_template["Location.Latitude"] = 0
-                        json_metadata_template["Location.Longitude"] = 0
-                        json_metadata_template["Location.Time"] = 0
-                        heading = row
-
-                    else:
-                        json_metadata_row = copy.deepcopy(json_metadata_template)
-                        column_index = 0
-                        for item in row:
-                            if item.strip() != "":
-                                json_metadata_row[heading[column_index]] = item
-                            column_index += 1
-                        json_metadata["proofs"].append(json_metadata_row)
-
-                json_metadata["pgpSignature"] = pgp
-                json_metadata["pgpPublicKey"] = public_pgp
-                file_hash = json_metadata["proofs"][0]["File Hash SHA256"]
-                json_metadata["sha256hash"] = file_hash
-                json_metadata["dateCreate"] = current_date_create.isoformat()
-                source_filename = os.path.basename(
-                    json_metadata["proofs"][0]["File Path"]
-                )
-                source_filename = urllib.parse.unquote_plus(source_filename)
-                result[source_filename] = json_metadata
+                result[source_filename] = result_data
 
             result["dateCreate"] = date_create.isoformat()
 
