@@ -373,7 +373,10 @@ while True:
 
             crawl_json = r.json()
 
-            wacz_url = f"https://{HOSTNAME}" + crawl_json["resources"][0]["path"]
+#            wacz_url = f"https://{HOSTNAME}" + crawl_json["resources"][0]["path"]
+            # Old way to download file, to be fixed for k8
+            wacz_url = crawl_json["resources"][0]["path"]
+            wacz_url = wacz_url.split("?")[0]
             wacz_path = (
                 TARGET_ROOT_PATH[current_collection] + "/tmp/" + crawl["cid"] + ".wacz"
             )
