@@ -1,0 +1,32 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+watchdog = "~=2.1.8"
+requests = "~=2.28.1"
+python-dotenv = "~=0.20.0"
+netifaces = "==0.11.0"
+python-magic = "~=0.4.27"
+# Signature verification
+pycryptodome = "~=3.14.1"
+# For sig66
+exifread = "~=3.0.0"
+# For wacz
+wacz = {version = "==0.4.6", extras = ["signing"]}
+# For http
+aiohttp = "~=3.8.1"
+aiohttp-jwt = "*"
+# For Starling Capture
+eth-account = "==0.6.*"
+
+[dev-packages]
+pytest = "~=7.1.2"
+pylint = "*"
+
+[requires]
+python_version = "3.9"
+
+[scripts]
+http = "python http/main.py"

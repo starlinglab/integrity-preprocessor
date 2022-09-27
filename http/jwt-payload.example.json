@@ -1,0 +1,10 @@
+{
+    "organization_id": "hyphacoop",
+    "collection_id": "my-collection",
+    "author": {
+        "@type": "Person",
+        "identifier": "https://hypha.coop",
+        "name": "Benedict Lau"
+    },
+    "copyright": "Copyright (C) 2021 Hypha Worker Co-operative. All Rights Reserved."
+}

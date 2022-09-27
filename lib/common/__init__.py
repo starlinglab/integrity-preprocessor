@@ -1,16 +1,16 @@
 import copy
-import sys
 import os
 import json
 import csv
-import shutil
 from zipfile import ZipFile
 import datetime
-import subprocess
 import hashlib
 import logging
 import integrity_recorder_id
 from warcio.archiveiterator import ArchiveIterator
+
+import validate
+import integrity_recorder_id
 
 integrity_recorder_id.build_recorder_id_json()
 
@@ -77,44 +77,12 @@ def get_recorder_meta(type):
     return recorder_meta_all
 
 
-def dearmor_gpg_key(key, out):
-    """
-    Write dearmored version of a PEM-encoded gpg key.
-
-    All arguments are paths.
-    """
-
-    # --yes to allow file overwriting
-    subprocess.run(["gpg", "--yes", "-o", out, "--dearmor", key], check=True)
-
-
-def verify_gpg_sig(key, sig, msg):
-    """
-    Verify if gpg signature is correct
-
-    All arguments are paths. The key path should be absolute.
-    The key path has to be to a dearmored key, not a original key from ProofMode.
-
-    True is returned if the signature verified, False if not.
-    """
-
-    proc = subprocess.run(
-        ["gpg", "--no-default-keyring", "--keyring", key, "--verify", sig, msg],
-        stderr=subprocess.DEVNULL,
-    )
-    if proc.returncode == 0:
-        return True
-    if proc.returncode == 1:
-        return False
-    # Some other unexpected return code, means an error has occured
-    proc.check_returncode()
-
-
 def sha256sum(filename):
+    hasher = hashlib.sha256()
     with open(filename, "rb") as f:
-        bytes = f.read()  # read entire file as bytes
-        readable_hash = hashlib.sha256(bytes).hexdigest()
-        return readable_hash
+        for byte_block in iter(lambda: f.read(32 * 1024), b""):
+            hasher.update(byte_block)
+        return hasher.hexdigest()
 
 
 def extract_wacz_user_agent(wacz_path):
@@ -131,6 +99,9 @@ def extract_wacz_user_agent(wacz_path):
 
 
 def parse_wacz_data_extra(wacz_path):
+    if not validate.Wacz(wacz_path).validate():
+        raise Exception("WACZ fails to validate")
+
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
         d = json.loads(wacz.read("datapackage-digest.json"))
@@ -175,6 +146,9 @@ def parse_wacz_data_extra(wacz_path):
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
+    if not validate.ProofMode(proofmode_path).validate():
+        raise Exception("proofmode zip fails to validate")
+
     data = ""
     result = {}
     date_create = None
@@ -183,29 +157,7 @@ def parse_proofmode_data(proofmode_path):
 
         public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
-        # In dir named after proofmode ZIP
-        this_tmp_dir = os.path.join(
-            TMP_DIR, os.path.basename(os.path.splitext(proofmode_path)[0])
-        )
-        if not os.path.exists(this_tmp_dir):
-            os.mkdir(this_tmp_dir)
-
-        dearmored_key_path = os.path.join(this_tmp_dir, "dearmored_key")
-        proofmode.extract("pubkey.asc", path=this_tmp_dir)
-        dearmor_gpg_key(os.path.join(this_tmp_dir, "pubkey.asc"), dearmored_key_path)
-
         for file in proofmode.namelist():
-            if file.endswith(".asc") and file != "pubkey.asc" and file.count(".") > 1:
-                # It's a signature of a metadata file, not the data (image) sig
-                # Original file filename is in there, ex: proof.csv.asc
-                # Verify signature
-                sig_path = file
-                msg_path = file[:-4]  # Remove .asc
-                sig_path = proofmode.extract(sig_path, path=this_tmp_dir)
-                msg_path = proofmode.extract(msg_path, path=this_tmp_dir)
-                if not verify_gpg_sig(dearmored_key_path, sig_path, msg_path):
-                    raise Exception(f"Signature file {file} failed to verify")
-
             # Extract file creation date from zip
             # and create a py datetime opject
             x = proofmode.getinfo(file).date_time
@@ -234,14 +186,6 @@ def parse_proofmode_data(proofmode_path):
                     "dateCreate": current_date_create.isoformat(),
                     "proofmodeJSON": json_meta,
                 }
-
-                # Verify data signature (usually JPEG)
-                data_path = proofmode.extract(source_filename, path=this_tmp_dir)
-                sig_path = proofmode.extract(file_hash + ".asc", path=this_tmp_dir)
-                if not verify_gpg_sig(dearmored_key_path, sig_path, data_path):
-                    raise Exception(
-                        f"Signature for data/image file {source_filename} did not verify: {file_hash + '.asc'}"
-                    )
 
             result["dateCreate"] = date_create.isoformat()
 
