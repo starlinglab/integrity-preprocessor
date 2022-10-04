@@ -99,8 +99,8 @@ def extract_wacz_user_agent(wacz_path):
 
 
 def parse_wacz_data_extra(wacz_path):
-    if not validate.Wacz(wacz_path).validate():
-        raise Exception("WACZ fails to validate")
+#    if not validate.Wacz(wacz_path).validate():
+#        raise Exception("WACZ fails to validate")
 
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
