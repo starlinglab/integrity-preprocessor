@@ -1,0 +1,21 @@
+[
+    {
+        "filename": "Test1.jpg",
+        "sourceId": {
+            "key": "FILENAME",
+            "value": "Test1"
+        },
+        "description": "This is a test",
+        "meta_data_private": {
+            "ABCMetadata": {
+                "SECRET_FIELD": "Shhhhh"
+            }
+        },
+        "meta_data_public": {
+            "ABCMetadata": {
+                "FILENAME": "Test1",
+                "CAPTION": "This is a test"
+            }
+        }
+    }
+]

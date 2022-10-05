@@ -67,7 +67,15 @@ if "collections" in config_data:
         TARGET_AUTHOR[aid] = config_data["collections"][aid]["author"]
         TARGET_ROOT_PATH[aid] = config_data["collections"][aid]["target_path"]
         TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")
-        TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], "input")
+
+        target_subfolder = "input"
+        if "review" in config_data["collections"][aid]:
+            if config_data["collections"][aid]["review"] == True:
+                target_subfolder = "review"
+
+        TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], target_subfolder)
+        if not os.path.exists(TARGET_PATH[aid]):
+            os.makedirs(TARGET_PATH[aid])
 
         # Create temporary folder to stage files before moving them into action folder
         if not os.path.exists(TARGET_PATH_TMP[aid]):
@@ -373,7 +381,10 @@ while True:
 
             crawl_json = r.json()
 
-            wacz_url = f"https://{HOSTNAME}" + crawl_json["resources"][0]["path"]
+#            wacz_url = f"https://{HOSTNAME}" + crawl_json["resources"][0]["path"]
+            # Old way to download file, to be fixed for k8
+            wacz_url = crawl_json["resources"][0]["path"]
+            wacz_url = wacz_url.split("?")[0]
             wacz_path = (
                 TARGET_ROOT_PATH[current_collection] + "/tmp/" + crawl["cid"] + ".wacz"
             )
