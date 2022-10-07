@@ -40,7 +40,8 @@ class Sig66(Validate):
         self.key_path = key_path
         # JSON
         self.provider = "sig66"
-        self.public_key = read_file(key_path)
+        if key_path != "":
+            self.public_key = read_file(key_path)
         self.sig = None
         self.auth_msg = None
 
@@ -63,7 +64,6 @@ class Sig66(Validate):
         file = open(self.jpeg_path, "rb")
 
         data = file.read(12)
-
         if data[:2] != b"\xFF\xD8":
             # Not a JPEG
             raise Sig66VerificationException("Not a JPEG file!")
@@ -192,6 +192,8 @@ class Sig66(Validate):
         combination_hash = image_hash + metadata_hash
         self.auth_msg = combination_hash.hex()
 
+        if self.key_path == "":
+            return False
         # Adapted from signature verification example
         # https://www.pycryptodome.org/en/latest/src/signature/dsa.html
 
