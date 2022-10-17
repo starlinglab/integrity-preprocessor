@@ -35,13 +35,22 @@ class Sig66(Validate):
         "SHA256 hash of image data concatenated with SHA256 hash of metadata"
     )
 
-    def __init__(self, jpeg_path: str, key_path: str, *args, **kwargs) -> None:
+    def __init__(
+        self, jpeg_path: str, key_path: str = "", key_list: list = None, *args, **kwargs
+    ) -> None:
         self.jpeg_path = jpeg_path
         self.key_path = key_path
         # JSON
         self.provider = "sig66"
+        self.public_key = ""
+        self.public_key_list = []
+
+        if key_list != None:
+            self.public_key_list = key_list
+
         if key_path != "":
-            self.public_key = read_file(key_path)
+            self.public_key_list.append(read_file(key_path))
+
         self.sig = None
         self.auth_msg = None
 
@@ -182,7 +191,17 @@ class Sig66(Validate):
         image_data = file_bytes[image_data_start : image_data_end + 2]
 
         # Signature is at the end of the file, immediately following FFD9
-        signature = file_bytes[image_data_end + 2 :]
+        # Read backwards instead of forwards
+        for i in range(2, 300):
+            if (
+                file_bytes[len(file_bytes) - i] == 255
+                and file_bytes[len(file_bytes) - i + 1] == 217
+            ):
+                print(i)
+                signature = file_bytes[len(file_bytes) - i + 2 :]
+                print(signature)
+                # print (file_bytes[image_data_end + 2 :])
+        # signature = file_bytes[image_data_end + 2 :]
         self.sig = base64.standard_b64encode(signature).decode()
 
         ### Hash and verify ###
@@ -191,9 +210,20 @@ class Sig66(Validate):
         image_hash = hashlib.sha256(image_data).digest()
         combination_hash = image_hash + metadata_hash
         self.auth_msg = combination_hash.hex()
+        self.public_key = ""
+        if self.public_key_list != None:
+            if len(self.public_key_list) == 1:
+                self.public_key = self.public_key_list[0]
+            for key in self.public_key_list:
+                res = self.verify_sig66(key, combination_hash, signature)
+                if res == True:
+                    self.public_key = key
+                    return True
+            return False
 
         if self.key_path == "":
             return False
+
         # Adapted from signature verification example
         # https://www.pycryptodome.org/en/latest/src/signature/dsa.html
 
@@ -201,6 +231,16 @@ class Sig66(Validate):
             key = ECC.import_key(f.read())
         h = SHA256.new(combination_hash)
         verifier = DSS.new(key, "fips-186-3", encoding="der")
+        try:
+            verifier.verify(h, signature)
+            return True
+        except ValueError:
+            return False
+
+    def verify_sig66(self, key, combination_hash, signature):
+        imported_key = ECC.import_key(key)
+        h = SHA256.new(combination_hash)
+        verifier = DSS.new(imported_key, "fips-186-3", encoding="der")
         try:
             verifier.verify(h, signature)
             return True
