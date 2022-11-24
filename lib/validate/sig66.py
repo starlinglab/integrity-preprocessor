@@ -140,6 +140,9 @@ class Sig66(Validate):
         file.seek(metadata_start)
         metadata = file.read((metadata_end - metadata_start) + 1)
 
+        self.metadata_start = metadata_start
+        self.metadata_end = metadata_end
+        self.metadata = metadata
         ##### Image data #####
 
         # Find Start Of Scan (SOS) which starts image data - indicated by 0xFFDA
@@ -189,6 +192,9 @@ class Sig66(Validate):
         image_data_end = pos
         # +2 to include the FFD9 bytes
         image_data = file_bytes[image_data_start : image_data_end + 2]
+        self.image_start = image_data_start
+        self.image_end = image_data_end + 2
+        self.image_data = image_data
 
         # Signature is at the end of the file, immediately following FFD9
         # Read backwards instead of forwards
@@ -201,6 +207,7 @@ class Sig66(Validate):
                 signature = file_bytes[len(file_bytes) - i + 2 :]
                 print(signature)
                 # print (file_bytes[image_data_end + 2 :])
+        # Signature is at the end of the file, immediately following FFD9
         # signature = file_bytes[image_data_end + 2 :]
         self.sig = base64.standard_b64encode(signature).decode()
 
@@ -211,6 +218,9 @@ class Sig66(Validate):
         combination_hash = image_hash + metadata_hash
         self.auth_msg = combination_hash.hex()
         self.public_key = ""
+
+        # Adapted from signature verification example
+        # https://www.pycryptodome.org/en/latest/src/signature/dsa.html
         if self.public_key_list != None:
             if len(self.public_key_list) == 1:
                 self.public_key = self.public_key_list[0]
@@ -223,9 +233,6 @@ class Sig66(Validate):
 
         if self.key_path == "":
             return False
-
-        # Adapted from signature verification example
-        # https://www.pycryptodome.org/en/latest/src/signature/dsa.html
 
         with open(self.key_path, "rb") as f:
             key = ECC.import_key(f.read())
