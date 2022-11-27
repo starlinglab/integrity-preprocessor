@@ -11,6 +11,7 @@ from warcio.archiveiterator import ArchiveIterator
 
 import sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../")
+import validate
 import integrity_recorder_id
 
 integrity_recorder_id.build_recorder_id_json()
