@@ -191,6 +191,5 @@ def parse_proofmode_data(proofmode_path):
 
             result["dateCreate"] = date_create.isoformat()
 
-    shutil.rmtree(this_tmp_dir)
 
     return result

@@ -1,7 +1,7 @@
+import json
 import os
 import subprocess
 from zipfile import ZipFile
-import csv
 import shutil
 
 from .common import Validate, read_file, sha256sum
@@ -70,17 +70,12 @@ class ProofMode(Validate):
                         "authenticatedMessageDescription": self.auth_msg_desc,
                     }
 
-                if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
-                    # It's a CSV with metadata - use it to verify the data file
-                    # Data file is usually a JPEG with a non-standard name
-                    csv_reader = csv.reader(
-                        zipf.read(file).decode("utf-8").splitlines(), delimiter=","
-                    )
-                    next(csv_reader)  # Skip header row
-                    row = next(csv_reader)
-                    file_hash = row[0]
-                    file_name = os.path.basename(row[27])
-                    self.provider = row[16]
+                if os.path.splitext(file)[1] == ".json":
+                    with zipf.open(file) as proofmode:
+                        metadata = json.load(proofmode)
+                        file_hash = metadata["File Hash SHA256"]
+                        file_name = os.path.basename(metadata["File Path"])
+                        self.provider = metadata["Notes"]
 
                     # Validate data signature
                     data_path = zipf.extract(file_name, path=self.tmp_dir)
