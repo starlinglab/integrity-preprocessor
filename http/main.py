@@ -23,6 +23,7 @@ DEBUG = os.environ.get("HTTP_DEBUG") == "1"
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import validate
+import geocode
 
 if not DEBUG:
     import integrity_recorder_id
@@ -71,6 +72,24 @@ def error_handling_and_response():
             response["status_code"] = 500
             # Print error info for unexpected errors
             print(traceback.format_exc())
+
+
+def get_value_from_meta(meta, name):
+    """Gets the value for a given 'name' in meta['information'].
+    Args:
+        meta: dict with the 'meta' section of the request
+        name: string with the name of the value we are looking for
+    Returns:
+        the value corresponding to the given name, or None if not found
+    """
+    if (information := meta.get("information")) is None:
+        return None
+
+    for item in information:
+        if item.get("name") == name:
+            return item.get("value")
+
+    return None
 
 
 global_meta_recorder = None
@@ -126,6 +145,7 @@ async def data_from_multipart(request):
             "author": jwt.get("author"),
             "extras": {},
             "private": {
+                "geolocation": {},
                 "providerToken": jwt,
             },
         },
@@ -144,8 +164,10 @@ async def data_from_multipart(request):
         if part.name == "file":
             multipart_data["asset_fullpath"] = await write_file(part)
         elif part.name == "meta":
+            # Store and parse
             multipart_data["meta_raw"] = await part.text()
             multipart_data["meta"] = json.loads(multipart_data["meta_raw"])
+            # Set some fields in meta_content
             meta_content["contentMetadata"]["mime"] = multipart_data["meta"]["proof"][
                 "mimeType"
             ]
@@ -159,11 +181,34 @@ async def data_from_multipart(request):
                 + "Z"
             )
             meta_content["contentMetadata"]["private"][
-                "meta"
+                "b64AuthenticatedMetadata"
             ] = base64.standard_b64encode(multipart_data["meta_raw"].encode()).decode()
+
+            # geolocation
+            geolocation = meta_content["contentMetadata"]["private"]["geolocation"]
+            meta = multipart_data["meta"]
+            geolocation["latitude"] = get_value_from_meta(
+                meta, "Current GPS Latitude"
+            ) or get_value_from_meta(meta, "Last Known GPS Latitude")
+            geolocation["longitude"] = get_value_from_meta(
+                meta, "Current GPS Longitude"
+            ) or get_value_from_meta(meta, "Last Known GPS Longitude")
+            geolocation["altitude"] = get_value_from_meta(
+                meta, "Current GPS Altitude"
+            ) or get_value_from_meta(meta, "Last Known GPS Altitude")
+            geolocation["timestamp"] = get_value_from_meta(
+                meta, "Current GPS Timestamp"
+            ) or get_value_from_meta(meta, "Last Known GPS Timestamp")
+            # Add reverse-geocode keys
+            geolocation.update(
+                geocode.reverse_geocode(
+                    geolocation["latitude"], geolocation["longitude"]
+                )
+            )
+
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
-            meta_content["contentMetadata"]["private"]["signature"] = multipart_data[
+            meta_content["contentMetadata"]["private"]["signatures"] = multipart_data[
                 "signature"
             ]
         elif part.name == "caption":

@@ -20,6 +20,8 @@ aiohttp = "~=3.8.1"
 aiohttp-jwt = "*"
 # For Starling Capture
 eth-account = "==0.6.*"
+# For reverse-geocode
+geocoder = "~=1.38"
 
 [dev-packages]
 pytest = "~=7.1.2"
