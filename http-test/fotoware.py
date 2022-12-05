@@ -12,7 +12,7 @@ import validate
 from contextlib import contextmanager
 import shutil
 import exifread
-from libxmp import XMPFiles, consts # python-xmp-toolkit apt - exempi  
+from libxmp import XMPFiles, consts # python-xmp-toolkit apt - exempi
 import dotenv
 
 dotenv.load_dotenv()
@@ -80,7 +80,7 @@ def get_xmp_document_id(filename):
     res = xmp.get_property(consts.XMP_NS_XMP_MM, u'OriginalDocumentID')
     xmpfile.close_file()
     return res
-    
+
 ######## fotoware
 FOTOWARE_URL = os.environ.get("FOTOWARE_API_URL")
 FOTOWARE_CLIENT_ID = os.environ.get("FOTOWARE_API_CLIENT_ID")
@@ -92,13 +92,13 @@ async def fotoware_download(source_href,target):
         ## Download original image via API
         token = await fotoware_oauth(FOTOWARE_CLIENT_ID,FOTOWARE_SECRET)
         auth_header= {
-	        "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {token}",
         }
 
         headers = auth_header
         headers["Content-Type"] = "application/vnd.fotoware.rendition-request+json"
         headers["accept"] = "application/vnd.fotoware.rendition-response+json"
-        
+
         # Request Rendition Download
         data= {"href":source_href}
         r=requests.post(f"{FOTOWARE_URL}/fotoweb/services/renditions",headers=auth_header,json=data)
@@ -111,15 +111,15 @@ async def fotoware_download(source_href,target):
         while r.status_code == 202:
             print("202... Waiting for download to be available")
             await asyncio.sleep(5)
-            r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)         
+            r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
 
         with open(target, 'wb') as f:
-	        f.write(r.content)
+            f.write(r.content)
 
 async def fotoware_upload(source,filename=""):
     if filename == "":
         filename = os.path.basename(filename)
-    files={filename: open(filename,'rb')}
+    files={filename: open(source,'rb')}
 
     token = await fotoware_oauth(FOTOWARE_CLIENT_ID,FOTOWARE_SECRET)
     auth_header= {
@@ -128,20 +128,21 @@ async def fotoware_upload(source,filename=""):
 
     r=requests.post(f"{FOTOWARE_URL}/fotoweb/archives/5000-Starling/",headers=auth_header,files=files)
     result = r.json()
-    href = result["href"]
+#    href = result["href"]
 
-    headers = auth_header
-    headers["accept"] = "application/vnd.fotoware.upload-status+json"
-    r=requests.get(f"{FOTOWARE_URL}" + href,headers=auth_header)
-    status = "pending"
-    while r.status_code == 202 or status != "done":
-        print("Waiting for upload...")
-        await asyncio.sleep(5)
-        r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
-        res=r.json()
-        status = res["job"]["status"]
-        if status=="failed":
-            status = "done"
+#    headers = auth_header
+#    headers["accept"] = "application/vnd.fotoware.upload-status+json"
+#    print (f"Downloading ... {FOTOWARE_URL}")
+#    r=requests.get(f"{FOTOWARE_URL}" + href,headers=auth_header)
+#    status = "pending"
+#    while r.status_code == 202 or status != "done":
+#        print("Waiting for upload...")
+#        await asyncio.sleep(5)
+#        r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
+#        res=r.json()
+#        status = res["job"]["status"]
+#        if status=="failed":
+#            status = "done"
 
 async def fotoware_oauth(clientid,client_secret):
     auth={
@@ -163,7 +164,7 @@ async def fotoware_ingested(request):
         print(response)
 
         res = await request.json()
-        print(res)
+        print(json.dumps(res))
 
         original_href=res["href"]
         original_filename = res["data"]["filename"]
@@ -178,11 +179,11 @@ async def fotoware_ingested(request):
         doc_id = get_xmp_document_id("/tmp/test.jpg")
         if doc_id != "":
             print (f"doc_id = {doc_id}  cant be a 66 image!")
-            return web.json_response(response, status=response.get("status_code"))    
+            return web.json_response(response, status=response.get("status_code"))
         print("Looks ok... moving on")
         s = validate.Sig66(
             f"/tmp/test.jpg", key_list=pubKeys
-        )        
+        )
         res = s.validate()
         print("Validate didnt break")
         print(f"Validate is {res}")
@@ -199,20 +200,16 @@ async def fotoware_ingested(request):
             # generate filename
             extension = os.path.splitext(original_filename)[1]
             name = os.path.splitext(original_filename)[0]
-            target_filename = f"{device} - {name}.{extension}"
-            print(f"Named {target_file}")
-            await fotoware_upload("/tmp/test.jpg",target_filename)
+            target_filename = f"{device} - {name}{extension}"
+            print(f"Named {target_filename}")
+            os.rename("/tmp/test.jpg",f"/tmp/{target_filename}")
+            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
             print(f"Named Upload Done?")
         return web.json_response(response, status=response.get("status_code"))
-        
-
-
 
 
         print(f"Wrote to /tmp/{filename}")
         # READ 66
-        
-        
         data={
             "metadata": {
                 "859": { "value": f"{s.auth_msg}" },
@@ -229,7 +226,7 @@ async def fotoware_ingested(request):
         print(res)
         print(res.content)
         print(json.dumps(data, indent=2))
-        
+
         return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_modified(request):
