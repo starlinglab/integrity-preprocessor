@@ -11,6 +11,9 @@ import watchdog.events
 from zipfile import ZipFile
 import magic
 import csv
+import base64
+
+
 
 from watchdog.observers import Observer
 
@@ -270,7 +273,22 @@ class watch_folder:
                         logging.info(f"{asset_filename} - Error lines do not match")
                         exit
                 content_meta = json.loads(lines[0])
-                private["starlingCapture"]["signature"] = content_meta
+                private["starlingCapture"]["signatures"] = content_meta
+# FIX Metadata
+
+                # Fix broken information array
+                metadata_json=json.loads(content_meta)
+                metadata_json["information"]=[]
+                metadata_string=json.dumps(metadata_json)
+                metadata_string=metadata_string.replace(" ","")
+
+                #zz=starling_capture.StarlingCapture("2aaf7611e23c265941fcc6c09e2c3c6bad7237d3f5519981476301e2367a768c.jpg", metadata_string, signature_json)
+
+                metadata_byte = metadata_string.encode("ascii")
+                metadata_base64_bytes = base64.b64encode(metadata_byte)
+                base64_string = metadata_base64_bytes.decode("ascii")
+
+                private["starlingCapture"]["signatures"]["b64AuthenticatedMetadata"] = base64_string
 
         # read index file if it exists
         source_path = os.path.dirname(asset_filename)
