@@ -1,3 +1,4 @@
+from copy import deepcopy
 import copy
 import io
 import datetime
@@ -13,6 +14,8 @@ import magic
 import csv
 import base64
 
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+import validate
 
 
 from watchdog.observers import Observer
@@ -247,7 +250,7 @@ class watch_folder:
         if "processWacz" in self.config and self.config["processWacz"]:
             logging.info(f"{asset_filename} Processing file as a WACZ")
             extras = common.parse_wacz_data_extra(asset_filename)
-        if "processProofMode" in self.config and self.config["processProofMode"]:
+        if "processProofmode" in self.config and self.config["processProofmode"]:
             logging.info(f"{asset_filename} Processing file as a ProofMode")
             private["proofmode"] = common.parse_proofmode_data(asset_filename)
 
@@ -264,31 +267,33 @@ class watch_folder:
                     if lines[0] != lines[1]:
                         logging.info(f"{asset_filename} - Error lines do not match")
                         exit
-                content_meta = json.loads(lines[0])
-                private["starlingCapture"]["metadata"] = content_meta
+                metadata_json = json.loads(lines[0])
+                private["starlingCapture"]["metadata"] = metadata_json
             with open(f"{legacy_base}-signature.json") as file_meta:
                 lines = file_meta.readlines()
                 if len(lines) > 1:
                     if lines[0] != lines[1]:
                         logging.info(f"{asset_filename} - Error lines do not match")
                         exit
-                content_meta = json.loads(lines[0])
-                private["starlingCapture"]["signatures"] = content_meta
-# FIX Metadata
+                
+                signature_json = json.loads(lines[0])
+                print(signature_json)
+                private["starlingCapture"]["signatures"] = signature_json
+            # FIX Metadata bug
+            metadata_json_fix=deepcopy(metadata_json)
+            metadata_json_fix["information"]=[]
+            metadata_json_fix=json.dumps(metadata_json_fix)
+            metadata_json_fix=metadata_json_fix.replace(" ","")
+            sc = validate.StarlingCapture(f"{legacy_base}.jpg", metadata_json_fix, signature_json)
+            if not sc.validate():
+                raise ClientError("Hashes or signatures did not validate")
 
-                # Fix broken information array
-                metadata_json=json.loads(content_meta)
-                metadata_json["information"]=[]
-                metadata_string=json.dumps(metadata_json)
-                metadata_string=metadata_string.replace(" ","")
+            metadata_byte = metadata_json_fix.encode("ascii")
+            metadata_base64_bytes = base64.b64encode(metadata_byte)
+            base64_string = metadata_base64_bytes.decode("ascii")
+            print(private["starlingCapture"]["signatures"])
 
-                #zz=starling_capture.StarlingCapture("2aaf7611e23c265941fcc6c09e2c3c6bad7237d3f5519981476301e2367a768c.jpg", metadata_string, signature_json)
-
-                metadata_byte = metadata_string.encode("ascii")
-                metadata_base64_bytes = base64.b64encode(metadata_byte)
-                base64_string = metadata_base64_bytes.decode("ascii")
-
-                private["starlingCapture"]["signatures"]["b64AuthenticatedMetadata"] = base64_string
+            private["starlingCapture"]["signatures"][0]["b64AuthenticatedMetadata"] = base64_string
 
         # read index file if it exists
         source_path = os.path.dirname(asset_filename)
