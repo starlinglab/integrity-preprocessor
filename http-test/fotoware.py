@@ -1,3 +1,4 @@
+import datetime
 import os
 import sys
 import dotenv
@@ -5,9 +6,16 @@ import requests
 import asyncio
 import json
 from aiohttp import web
+import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import validate
+
+
+sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+import integrity_recorder_id
+import common
+
 
 from contextlib import contextmanager
 import shutil
@@ -17,6 +25,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
+integrity_path="/mnt/store/fotoware-test"
 @contextmanager
 def error_handling_and_response():
     """Context manager to wrap the core of a handler implementation with error handlers.
@@ -50,8 +59,10 @@ def get_device_from_key(pubkey):
     return ""
 
 ####### XMP and EXIT Stuff
-
 def uid_from_exif(filename):
+  """
+  Extract Unique Identifier from EXIF data in a JPG
+  """
   f = open(filename, 'rb')
   tags = exifread.process_file(f)
   if "MakerNote ImageUniqueID" in tags:
@@ -61,6 +72,9 @@ def uid_from_exif(filename):
   return ""
 
 def set_xmp_document_id(filename, uid):
+    """
+    Sets a OID DID and IID XMP in a JPG
+    """
     xmpfile = XMPFiles( file_path=filename, open_forupdate=True )
     xmp = xmpfile.get_xmp()
     xmp.set_property(consts.XMP_NS_XMP_MM, u'OriginalDocumentID', uid.upper())
@@ -70,7 +84,9 @@ def set_xmp_document_id(filename, uid):
     xmpfile.close_file()
 
 def get_xmp_document_id(filename):
-
+    """
+    Extract OID from XMP in aJPG
+    """
     xmpfile = XMPFiles( file_path=filename)
     xmp = xmpfile.get_xmp()
     if xmp is None:
@@ -88,35 +104,48 @@ FOTOWARE_SECRET = os.environ.get("FOTOWARE_API_SECRET")
 
 
 async def fotoware_download(source_href,target):
+    """
+    Download a file from fotoware. 
 
-        ## Download original image via API
-        token = await fotoware_oauth(FOTOWARE_CLIENT_ID,FOTOWARE_SECRET)
-        auth_header= {
-            "Authorization": f"Bearer {token}",
-        }
+    source_href: Source url as refrenced in fotoware
+    target: where to save the file
+    """
+    ## Download original image via API
+    token = await fotoware_oauth(FOTOWARE_CLIENT_ID,FOTOWARE_SECRET)
+    auth_header= {
+        "Authorization": f"Bearer {token}",
+    }
 
-        headers = auth_header
-        headers["Content-Type"] = "application/vnd.fotoware.rendition-request+json"
-        headers["accept"] = "application/vnd.fotoware.rendition-response+json"
+    headers = auth_header
+    headers["Content-Type"] = "application/vnd.fotoware.rendition-request+json"
+    headers["accept"] = "application/vnd.fotoware.rendition-response+json"
 
-        # Request Rendition Download
-        data= {"href":source_href}
-        r=requests.post(f"{FOTOWARE_URL}/fotoweb/services/renditions",headers=auth_header,json=data)
-        result = r.json()
-        href = result["href"]
-        print(f"HREF for download is at {href}")
+    # Request Rendition Download
+    data= {"href":source_href}
+    r=requests.post(f"{FOTOWARE_URL}/fotoweb/services/renditions",headers=auth_header,json=data)
+    result = r.json()
+    href = result["href"]
+    print(f"HREF for download is at {href}")
 
-        headers = auth_header
+    # Waiting for file to be ready and downloaded
+    headers = auth_header
+    r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
+    while r.status_code == 202:
+        print("202... Waiting for download to be available")
+        await asyncio.sleep(5)
         r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
-        while r.status_code == 202:
-            print("202... Waiting for download to be available")
-            await asyncio.sleep(5)
-            r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
 
-        with open(target, 'wb') as f:
-            f.write(r.content)
+    # Save the contrent
+    with open(target, 'wb') as f:
+        f.write(r.content)
 
 async def fotoware_upload(source,filename=""):
+    """
+    Upload a file from fotoware. 
+
+    source: Path to file to upload
+    filename: filename to be used by fotoware
+    """
     if filename == "":
         filename = os.path.basename(filename)
     files={filename: open(source,'rb')}
@@ -145,6 +174,9 @@ async def fotoware_upload(source,filename=""):
 #            status = "done"
 
 async def fotoware_oauth(clientid,client_secret):
+    '''
+    Build oauth token
+    '''
     auth={
         "grant_type":"client_credentials",
         "client_id":f"{clientid}",
@@ -157,9 +189,12 @@ async def fotoware_oauth(clientid,client_secret):
     #accessTokenExpires = result["token_type"]
     return accessToken
 
-async def fotoware_ingested(request):
+async def fotoware_uploaded(request):
+    '''
+    Process ftp uploads from fotoware, check signatures66, set OID and upload back into fotoware
+    '''
     with error_handling_and_response() as response:
-        print("Ingest Fired")
+        print("Uploaded Fired")
         print(request)
         print(response)
 
@@ -172,39 +207,86 @@ async def fotoware_ingested(request):
             if rendition["original"] == True:
                 original_rendition=rendition["href"]
         filename=res["data"]["filename"]
-        print(f"Original at  {original_rendition}")
+        print(f"Original at {original_rendition}")
 
-        await fotoware_download(original_rendition,"/tmp/test.jpg")
+        tmp_uuid=uuid.uuid1()
+        tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"                
 
-        doc_id = get_xmp_document_id("/tmp/test.jpg")
+        await fotoware_download(original_rendition,tmp_file)
+
+        doc_id = get_xmp_document_id(tmp_file)
+
+        is66="1"
         if doc_id != "":
-            print (f"doc_id = {doc_id}  cant be a 66 image!")
-            return web.json_response(response, status=response.get("status_code"))
-        print("Looks ok... moving on")
+            print (f"doc_id = {doc_id}, cant be a 66 image!")
+            is66="unknown"
+        
         s = validate.Sig66(
-            f"/tmp/test.jpg", key_list=pubKeys
-        )
+            tmp_file, key_list=pubKeys
+        )        
         res = s.validate()
-        print("Validate didnt break")
-        print(f"Validate is {res}")
-        if res==True:
+        print("Validate didnt break")        
+        print(f"Validation is {res}")
+        extension = os.path.splitext(original_filename)[1]
+        name = os.path.splitext(original_filename)[0]
+        target_filename = "error.jpg"
+
+        if res==True and is66 == "1" :
             current_device = get_device_from_key(s.public_key)
             if current_device=="":
                 current_device="unknown"
             print(f"Device is {current_device}")
-            uid = uid_from_exif("/tmp/test.jpg")
+            uid = uid_from_exif(tmp_file)
             print(f"UID is {uid}")
             # set xmp UUID
-            set_xmp_document_id("/tmp/test.jpg",uid)
+            set_xmp_document_id(tmp_file,uid)
             print(f"Set XMP to UID")
             # generate filename
-            extension = os.path.splitext(original_filename)[1]
-            name = os.path.splitext(original_filename)[0]
+
             target_filename = f"{device} - {name}{extension}"
             print(f"Named {target_filename}")
-            os.rename("/tmp/test.jpg",f"/tmp/{target_filename}")
+            os.rename(tmp_file,f"/tmp/{target_filename}")
             await fotoware_upload(f"/tmp/{target_filename}",target_filename)
-            print(f"Named Upload Done?")
+
+            # Metadata component
+        else:
+            if res==False:
+                is66 = "unverified"
+            target_filename = f"{is66} - {name}{extension}"
+            os.rename(tmp_file,f"/tmp/{target_filename}")
+            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
+        
+        # Starling Pipeline
+
+        # Extract from exif?
+        meta_date_create = datetime.datetime.utcnow().isoformat()
+        asset_filename = f"/tmp/{target_filename}"
+        extras = {
+            "signatures": s.validated_sigs_json()
+        }
+        private = {}            
+
+        content_meta = generate_metadata_content(
+            meta_date_create,
+            asset_filename,
+            extras,
+            private,
+            None,
+            None
+        )
+
+        recorder_meta = common.get_recorder_meta("http")
+
+        print(asset_filename)
+        print( content_meta)
+        print( recorder_meta)
+        print( f"{integrity_path}/tmp")
+        print( f"{integrity_path}/input")
+        out_file = common.add_to_pipeline(
+            asset_filename, content_meta, recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
+        )
+
+        print(f"{asset_filename} Created new asset {out_file}")
         return web.json_response(response, status=response.get("status_code"))
 
 
@@ -229,15 +311,74 @@ async def fotoware_ingested(request):
 
         return web.json_response(response, status=response.get("status_code"))
 
-async def fotoware_modified(request):
+def generate_metadata_content(
+    meta_date_created,
+    sourcePath,
+    meta_extras,
+    meta_private,
+    author,
+    index_data,
+):
+
+    extras = meta_extras
+    private = meta_private
+
+    default_author = {
+        "@type": "Organization",
+        "identifier": "https://starlinglab.org",
+        "name": "Starling Lab",
+    }
+
+    default_content = {
+        "name": "Authenticated Image",
+        "mime": "application/jpeg",
+        "description": "Image authenticated on camera",
+        "author": default_author,
+    }
+
+    meta_content = default_content
+
+    if author:
+        meta_content["author"] = author    
+
+    #create_datetime = datetime.datetime.utcfromtimestamp(meta_date_created)
+    create_datetime = meta_date_created
+    meta_content["dateCreated"] = meta_date_created #create_datetime.isoformat() + "Z"
+    meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
+
+    if index_data:
+        if "description" in index_data:
+            meta_content["description"] = index_data["description"]
+        if "sourceId" in index_data:
+            meta_content["sourceId"] = index_data["sourceId"]
+        if "meta_data_private" in index_data:
+            for item in index_data["meta_data_private"]:
+                private[item] = index_data["meta_data_private"][item]
+        if "meta_data_public" in index_data:
+            for item in index_data["meta_data_public"]:
+                extras[item] = index_data["meta_data_public"][item]
+
+    meta_content["extras"] = extras
+    meta_content["private"] = private
+
+    return meta_content
+    
+async def fotoware_ingested(request):
     with error_handling_and_response() as response:
         print("Ingest Fired")
         print(request)
         print(response)
     return web.json_response(response, status=response.get("status_code"))
+async def fotoware_modified(request):
+    with error_handling_and_response() as response:
+        print("Modify Fired")
+        print(request)
+        print(response)
+    return web.json_response(response, status=response.get("status_code"))
+
 async def fotoware_deleted(request):
     with error_handling_and_response() as response:
-        print("Ingest Fired")
+        print("Delete Fired")
         print(request)
         print(response)
     return web.json_response(response, status=response.get("status_code"))

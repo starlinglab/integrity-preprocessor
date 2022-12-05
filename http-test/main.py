@@ -294,10 +294,11 @@ app = web.Application(
     ]
 )
 app.add_routes([web.post("/v1/assets/create", create)])
-app.add_routes([web.post("/v1/fotoware/ingestedasset", fotoware.fotoware_ingested)])
+app.add_routes([web.post("/v1/fotoware/ingestedasset", fotoware.fotoware_uploaded)])
+#, fotoware.fotoware_ingested)])
 app.add_routes([web.post("/v1/fotoware/modifiedasset", fotoware.fotoware_modified)])
 app.add_routes([web.post("/v1/fotoware/deletedasset", fotoware.fotoware_deleted)])
-app.add_routes([web.post("/v1/fotoware/uploadedasset", fotoware.fotoware_ingested)])
+app.add_routes([web.post("/v1/fotoware/uploadedasset", fotoware.fotoware_uploaded)])
 
 if __name__ == "__main__":
     web.run_app(app, host=HOST, port=PORT)
