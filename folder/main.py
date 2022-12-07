@@ -55,7 +55,7 @@ def generate_metadata_content(
     meta_private,
     meta_method,
     author,
-    index_data,
+    index_data
 ):
 
     # guess mime type
