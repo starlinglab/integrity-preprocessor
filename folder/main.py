@@ -215,7 +215,7 @@ class watch_folder:
             extras = common.parse_wacz_data_extra(asset_filename)
         if "processProofmode" in self.config and self.config["processProofmode"]:
             logging.info(f"{asset_filename} Processing file as a Proofmode")
-            extras = common.parse_proofmode_data(asset_filename)
+            private = common.parse_proofmode_data(asset_filename)
 
         # read index file if it exists
         source_path = os.path.dirname(asset_filename)
