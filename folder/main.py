@@ -213,8 +213,8 @@ class watch_folder:
         if "processWacz" in self.config and self.config["processWacz"]:
             logging.info(f"{asset_filename} Processing file as a WACZ")
             extras = common.parse_wacz_data_extra(asset_filename)
-        if "processProofMode" in self.config and self.config["processProofMode"]:
-            logging.info(f"{asset_filename} Processing file as a ProofMode")
+        if "processProofmode" in self.config and self.config["processProofmode"]:
+            logging.info(f"{asset_filename} Processing file as a Proofmode")
             extras = common.parse_proofmode_data(asset_filename)
 
         # read index file if it exists
@@ -239,6 +239,13 @@ class watch_folder:
             author,
             index_data
         )
+
+        if "description" in self.config:
+            content_meta["description"] = self.config["description"]
+
+        if "name" in self.config:
+            content_meta["name"] = self.config["name"]
+
         recorder_meta = common.get_recorder_meta("folder")
         out_file = common.add_to_pipeline(
             asset_filename, content_meta, recorder_meta, stage_path, output_path
