@@ -1,3 +1,4 @@
+from copy import deepcopy
 import copy
 import io
 import datetime
@@ -11,6 +12,11 @@ import watchdog.events
 from zipfile import ZipFile
 import magic
 import csv
+import base64
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+import validate
+
 
 from watchdog.observers import Observer
 
@@ -46,6 +52,7 @@ def generate_metadata_content(
     sourcePath,
     uploader_name,
     meta_extras,
+    meta_private,
     meta_method,
     author,
     index_data
@@ -56,7 +63,7 @@ def generate_metadata_content(
     meta_mime_type = mime.from_file(sourcePath)
 
     extras = meta_extras
-    private = {}
+    private = meta_private
 
     meta_content = default_content
 
@@ -105,14 +112,16 @@ def generate_metadata_content(
 
 metdata_file_timestamp = -1
 
-def _mkdir_recursive(path, uid,gid):
+
+def _mkdir_recursive(path, uid, gid):
     sub_path = os.path.dirname(path)
     if not os.path.exists(sub_path):
-        _mkdir_recursive(sub_path,uid,gid)
+        _mkdir_recursive(sub_path, uid, gid)
     if not os.path.exists(path):
         os.mkdir(path)
         os.chown(path, uid, gid)
         logging.info("Creating folder " + path)
+
 
 def _check_if_file_is_open(filename, lock_file):
 
@@ -122,19 +131,21 @@ def _check_if_file_is_open(filename, lock_file):
 
     for entry_name in os.listdir("/proc"):
         if entry_name.isnumeric():
-            entry_path = os.path.join("/proc", entry_name,"fd")
+            entry_path = os.path.join("/proc", entry_name, "fd")
             try:
                 for file_name in os.listdir(entry_path):
-                    if os.path.exists(os.path.join(entry_path,file_name)):
-                        if filename == os.readlink(os.path.join(entry_path,file_name)):
+                    if os.path.exists(os.path.join(entry_path, file_name)):
+                        if filename == os.readlink(os.path.join(entry_path, file_name)):
                             return True
             except:
                 pass
 
+
 def _wait_for_file_to_close(filename, lock_file):
-    while(_check_if_file_is_open(filename,lock_file)):
-        print (f"Waiting on file {filename}")
+    while _check_if_file_is_open(filename, lock_file):
+        print(f"Waiting on file {filename}")
         time.sleep(10)
+
 
 class watch_folder:
     "Class defining a scan folder"
@@ -142,7 +153,7 @@ class watch_folder:
 
     def __init__(self, conf):
         if os.path.exists(conf["sourcePath"]) == False:
-            _mkdir_recursive(conf["sourcePath"],1001,1001)
+            _mkdir_recursive(conf["sourcePath"], 1001, 1001)
         self.path = conf["sourcePath"]
         self.config = conf
         patterns = conf["allowedPatterns"]
@@ -158,17 +169,42 @@ class watch_folder:
     def on_created(self, event):
         # Skip index.json if it exists
 
-        if os.path.basename(event.src_path) == "index.json":
+        target_filename = event.src_path
+        if os.path.basename(target_filename) == "index.json":
             logging.info(f"Skipping index.json file")
             return
 
-        logging.info(f"Starting Processing of file {event.src_path}")
-        sha256asset = common.sha256sum(event.src_path)
+        if (
+            "processLegacyStarlingCapture" in self.config
+            and self.config["processLegacyStarlingCapture"]
+        ):
+            # Check if all 3 files are present
+            tmp = os.path.splitext(target_filename)
+            legacy_base = tmp[0]
+            ext = tmp[1]
+            if ext == ".json":
+                legacy_base = legacy_base[: legacy_base.rindex("-")]
+            if not os.path.exists(f"{legacy_base}.jpg"):
+                logging.info(f"Missing Asset")
+                return
+            if not os.path.exists(f"{legacy_base}-meta.json"):
+                logging.info(f"Missing Meta")
+                return
+            if not os.path.exists(f"{legacy_base}-signature.json"):
+                logging.info(f"Missing Signature")
+                return
+            target_filename = f"{legacy_base}.jpg"
+            logging.info(
+                f"Continuing merging Starling Backend Legacy Content {target_filename}"
+            )
 
-        lock_file = "" 
+        logging.info(f"Starting Processing of file {target_filename}")
+        sha256asset = common.sha256sum(target_filename)
+
+        lock_file = ""
         if "lockFile" in self.config:
             lock_file = self.config["lockFile"]
-        _wait_for_file_to_close(event.src_path,lock_file)        
+        _wait_for_file_to_close(target_filename, lock_file)
         target = self.config["targetPath"]
 
         extractName = False
@@ -192,11 +228,11 @@ class watch_folder:
         if not os.path.exists(stage_path):
             os.makedirs(stage_path)
 
-        asset_filename = event.src_path
+        asset_filename = target_filename
         meta_uploader_name = ""
         index_filename = ""
         if extractName:
-            fileName = os.path.basename(event.src_path)
+            fileName = os.path.basename(target_filename)
             tmp = fileName.split(extractNameCharacters, 2)
             if len(tmp) == 2:
                 meta_uploader_name = tmp[0]
@@ -210,12 +246,55 @@ class watch_folder:
         meta_date_create = os.path.getmtime(asset_filename)
 
         extras = {}
+        private = {}
         if "processWacz" in self.config and self.config["processWacz"]:
             logging.info(f"{asset_filename} Processing file as a WACZ")
             extras = common.parse_wacz_data_extra(asset_filename)
         if "processProofmode" in self.config and self.config["processProofmode"]:
-            logging.info(f"{asset_filename} Processing file as a Proofmode")
-            private = common.parse_proofmode_data(asset_filename)
+
+            logging.info(f"{asset_filename} Processing file as a ProofMode")
+            private["proofmode"] = common.parse_proofmode_data(asset_filename)
+
+        if (
+            "processLegacyStarlingCapture" in self.config
+            and self.config["processLegacyStarlingCapture"]
+        ):
+            meta_method = "Starling Capture"
+            private["starlingCapture"] = {}
+            # Parsing lines since some files come with duplicate lines breaking json format
+            with open(f"{legacy_base}-meta.json") as file_meta:
+                lines = file_meta.readlines()
+                if len(lines) > 1:
+                    if lines[0] != lines[1]:
+                        logging.info(f"{asset_filename} - Error lines do not match")
+                        exit
+                metadata_json = json.loads(lines[0])
+                private["starlingCapture"]["metadata"] = metadata_json
+            with open(f"{legacy_base}-signature.json") as file_meta:
+                lines = file_meta.readlines()
+                if len(lines) > 1:
+                    if lines[0] != lines[1]:
+                        logging.info(f"{asset_filename} - Error lines do not match")
+                        exit
+                
+                signature_json = json.loads(lines[0])
+                print(signature_json)
+                private["starlingCapture"]["signatures"] = signature_json
+            # FIX Metadata bug
+            metadata_json_fix=deepcopy(metadata_json)
+            metadata_json_fix["information"]=[]
+            metadata_json_fix=json.dumps(metadata_json_fix)
+            metadata_json_fix=metadata_json_fix.replace(" ","")
+            sc = validate.StarlingCapture(f"{legacy_base}.jpg", metadata_json_fix, signature_json)
+            if not sc.validate():
+                raise ClientError("Hashes or signatures did not validate")
+
+            metadata_byte = metadata_json_fix.encode("ascii")
+            metadata_base64_bytes = base64.b64encode(metadata_byte)
+            base64_string = metadata_base64_bytes.decode("ascii")
+            print(private["starlingCapture"]["signatures"])
+
+            private["starlingCapture"]["signatures"][0]["b64AuthenticatedMetadata"] = base64_string
 
         # read index file if it exists
         source_path = os.path.dirname(asset_filename)
@@ -235,9 +314,10 @@ class watch_folder:
             asset_filename,
             meta_uploader_name,
             extras,
+            private,
             meta_method,
             author,
-            index_data
+            index_data,
         )
 
         if "description" in self.config:

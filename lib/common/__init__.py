@@ -191,5 +191,4 @@ def parse_proofmode_data(proofmode_path):
 
             result["dateCreate"] = date_create.isoformat()
 
-
     return result
