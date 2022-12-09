@@ -7,7 +7,7 @@ startrow = 0
 endrow = 1000000000
 filename = "Starling-Caption-Credit.csv"
 config_filename = "Starling-Caption-Credit-config.json"
-
+target_filename = "Starling-Caption-Credit.json"
 # Load config
 with open(config_filename, "r") as config_file:
     config = json.load(config_file)
@@ -51,47 +51,48 @@ with open(filename, newline="", encoding="utf8") as csvfile:
                     json_metadata[heading[column_index]] = item
                 column_index += 1
 
-            filename = config["filenameField"]
-            if config["filenameSuffix"]:
-                filename = f"{filename}{config['filenameSuffix']}"
+            filename = json_metadata[config["filenameField"]]
+            if filename != "":
+                if config["filenameSuffix"]:
+                    filename = f"{filename}{config['filenameSuffix']}"
 
-            entry = {"filename": filename}
+                entry = {"filename": filename}
 
-            # Process Field Mappings
-            for mapping in config["fieldsMap"]:
-                if mapping == "sourceId":
-                    entry[mapping] = {
-                        "key": config["fieldsMap"][mapping],
-                        "value": json_metadata[config["fieldsMap"][mapping]],
-                    }
+                # Process Field Mappings
+                for mapping in config["fieldsMap"]:
+                    if mapping == "sourceId":
+                        entry[mapping] = {
+                            "key": config["fieldsMap"][mapping],
+                            "value": json_metadata[config["fieldsMap"][mapping]],
+                        }
+                    else:
+                        entry[mapping] = json_metadata[config["fieldsMap"][mapping]]
+
+                # Process private/public mappsings
+                entry["meta_data_private"] = {}
+                entry["meta_data_public"] = {}
+                meta_data_private = {}
+                meta_data_public = {}
+                for item in json_metadata:
+                    if item in config["fieldsPrivate"]:
+                        meta_data_private[item] = json_metadata[item]
+                    else:
+                        meta_data_public[item] = json_metadata[item]
+
+                if "org" in config:
+                    if len(meta_data_private):
+                        entry["meta_data_private"][
+                            config["org"] + "Metadata"
+                        ] = meta_data_private
+                    entry["meta_data_public"][config["org"] + "Metadata"] = meta_data_public
                 else:
-                    entry[mapping] = json_metadata[config["fieldsMap"][mapping]]
+                    if len(meta_data_private):
+                        entry["meta_data_private"] = meta_data_private
+                    entry["meta_data_public"] = meta_data_public
 
-            # Process private/public mappsings
-            entry["meta_data_private"] = {}
-            entry["meta_data_public"] = {}
-            meta_data_private = {}
-            meta_data_public = {}
-            for item in json_metadata:
-                if item in config["fieldsPrivate"]:
-                    meta_data_private[item] = json_metadata[item]
-                else:
-                    meta_data_public[item] = json_metadata[item]
-
-            if "org" in config:
-                if len(meta_data_private):
-                    entry["meta_data_private"][
-                        config["org"] + "Metadata"
-                    ] = meta_data_private
-                entry["meta_data_public"][config["org"] + "Metadata"] = meta_data_public
-            else:
-                if len(meta_data_private):
-                    entry["meta_data_private"] = meta_data_private
-                entry["meta_data_public"] = meta_data_public
-
-            if countlines >= startrow:
-                result.append(entry)
-            if countlines >= endrow:
-                break
-with open(f"{filename}.json", "w") as outfile:
+                if countlines >= startrow:
+                    result.append(entry)
+                if countlines >= endrow:
+                    break
+with open(f"{target_filename}.json", "w") as outfile:
     json.dump(result, outfile, indent=2)

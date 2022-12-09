@@ -12,6 +12,14 @@ This servce watches a specific fodlers for new files, then prepares the integrit
 
 This preprocessor is used for dropbox sync services.
 
+If using rclone for syncing, to upload directory structue us
+```
+cd /root/rclone
+docker-compose exec rclone /bin/bash
+rclone copy /data/sync/shared-input dropbox:$DROPBOX_PATH_INPUT --create-empty-src-dirs --min-size 5000G
+exit
+```
+
 ## Chat-bot
 
 The chat-bot service is a series of bots that interact with chat protocols. They relay on differnt chat bot applications to prepare the data for injestion.

@@ -8,7 +8,7 @@ def test_good_anon_sig():
     assert w.validate() == True
     assert w.validated_sigs_json() == [
         {
-            "algorithm": "wacz-anonymous-ecdsa-sig",
+            "algorithm": "ecdsa-key-sig",
             "authenticatedMessage": "sha256:aef48a18637f95a74e8537015a322b3894a88a8a54b310b2e6855d9f370b6b6c",
             "authenticatedMessageDescription": "The hash of datapackage.json in the WACZ "
             "file",
@@ -39,7 +39,7 @@ def test_good_domain_sig():
     assert w.validate() == True
     assert w.validated_sigs_json() == [
         {
-            "algorithm": "wacz-domain-ecdsa-sig",
+            "algorithm": "ecdsa-certificate-sig",
             "custom": {
                 "created": "2022-05-31T15:15:23Z",
                 "domain": "org1.authsign.stg.starlinglab.org",

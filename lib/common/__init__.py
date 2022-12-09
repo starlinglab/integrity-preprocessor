@@ -101,8 +101,8 @@ def extract_wacz_user_agent(wacz_path):
 
 
 def parse_wacz_data_extra(wacz_path):
-#    if not validate.Wacz(wacz_path).validate():
-#        raise Exception("WACZ fails to validate")
+    if not validate.Wacz(wacz_path).validate():
+        raise Exception("WACZ fails to validate")
 
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
@@ -148,11 +148,15 @@ def parse_wacz_data_extra(wacz_path):
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
-    if not validate.ProofMode(proofmode_path).validate():
+    validator = validate.ProofMode(proofmode_path)
+    if not validator.validate():
         raise Exception("proofmode zip fails to validate")
 
     data = ""
-    result = {}
+    result = {
+        "validatedSignatures": validator.validated_sigs_json()
+    }
+
     date_create = None
     # ProofMode metadata extraction
     with ZipFile(proofmode_path, "r") as proofmode:
@@ -190,6 +194,5 @@ def parse_proofmode_data(proofmode_path):
                 }
 
             result["dateCreate"] = date_create.isoformat()
-
 
     return result
