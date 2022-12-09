@@ -101,14 +101,18 @@ def extract_wacz_user_agent(wacz_path):
 
 
 def parse_wacz_data_extra(wacz_path):
-    if not validate.Wacz(wacz_path).validate():
+    validator = validate.Wacz(wacz_path)
+    if not validator.validate():
         raise Exception("WACZ fails to validate")
+
+    data = ""
+    extras = {
+        "validatedSignatures": validator.validated_sigs_json()
+    }
 
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
         d = json.loads(wacz.read("datapackage-digest.json"))
-        extras = {}
-
         if "signedData" in d:
             # auth sign data
             if "domain" in d["signedData"]:
