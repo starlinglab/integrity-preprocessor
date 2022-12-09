@@ -252,7 +252,10 @@ class watch_folder:
         if "processWacz" in self.config and self.config["processWacz"]:
             logging.info(f"{asset_filename} Processing file as a WACZ")
             extras = common.parse_wacz_data_extra(asset_filename)
-            
+            if "validatedSignatures" in extras:
+                validatedSignatures = extras["validatedSignatures"]
+                del extras["validatedSignatures"]
+   
         if "processProofmode" in self.config and self.config["processProofmode"]:
             logging.info(f"{asset_filename} Processing file as a ProofMode")
             private["proofmode"] = common.parse_proofmode_data(asset_filename)
