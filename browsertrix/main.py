@@ -443,6 +443,9 @@ while True:
                 meta_date_created,
                 TARGET_AUTHOR[current_collection],
             )
+            if "validatedSignatures" in content_meta["extras"]:
+                content_meta["validatedSignatures"]  = content_meta["extras"]["validatedSignatures"]
+                del content_meta["extras"]["validatedSignatures"]
 
             i = 1
 
