@@ -255,7 +255,7 @@ class watch_folder:
             if "validatedSignatures" in extras:
                 validatedSignatures = extras["validatedSignatures"]
                 del extras["validatedSignatures"]
-            
+   
         if "processProofmode" in self.config and self.config["processProofmode"]:
             logging.info(f"{asset_filename} Processing file as a ProofMode")
             private["proofmode"] = common.parse_proofmode_data(asset_filename)
