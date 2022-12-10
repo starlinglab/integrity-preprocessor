@@ -60,13 +60,17 @@ TARGET_PATH_TMP = {}
 TARGET_PATH = {}
 TARGET_ROOT_PATH = {}
 TARGET_AUTHOR = {}
+TARGET_NAME = {}
+TARGET_DESCRIPTION ={}
 
 # Process collections in config
 if "collections" in config_data:
     for aid in config_data["collections"]:
         TARGET_AUTHOR[aid] = config_data["collections"][aid]["author"]
+        TARGET_NAME[aid] = config_data["collections"][aid]["name"]
+        TARGET_DESCRIPTION[aid] = config_data["collections"][aid]["description"]
         TARGET_ROOT_PATH[aid] = config_data["collections"][aid]["target_path"]
-        TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")
+        TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")        
 
         target_subfolder = "input"
         if "review" in config_data["collections"][aid]:
@@ -446,7 +450,10 @@ while True:
             if "validatedSignatures" in content_meta["extras"]:
                 content_meta["validatedSignatures"]  = content_meta["extras"]["validatedSignatures"]
                 del content_meta["extras"]["validatedSignatures"]
-
+            if TARGET_DESCRIPTION[current_collection]:
+                content_meta["description"]=TARGET_DESCRIPTION[current_collection]
+            if TARGET_NAME[current_collection]:
+                content_meta["name"]=TARGET_NAME[current_collection]
             i = 1
 
             out_file = common.add_to_pipeline(
