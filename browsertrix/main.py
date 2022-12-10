@@ -66,9 +66,17 @@ TARGET_DESCRIPTION ={}
 # Process collections in config
 if "collections" in config_data:
     for aid in config_data["collections"]:
-        TARGET_AUTHOR[aid] = config_data["collections"][aid]["author"]
-        TARGET_NAME[aid] = config_data["collections"][aid]["name"]
-        TARGET_DESCRIPTION[aid] = config_data["collections"][aid]["description"]
+        TARGET_AUTHOR[aid] = None
+        TARGET_NAME[aid] = None
+        TARGET_DESCRIPTION[aid] = None
+
+        if "author"  in  config_data["collections"][aid]:
+            TARGET_AUTHOR[aid] = config_data["collections"][aid]["author"]
+        if "name"  in  config_data["collections"][aid]:
+            TARGET_NAME[aid] = config_data["collections"][aid]["name"]
+        if "description"  in  config_data["collections"][aid]:
+            TARGET_DESCRIPTION[aid] = config_data["collections"][aid]["description"]
+                        
         TARGET_ROOT_PATH[aid] = config_data["collections"][aid]["target_path"]
         TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")        
 
