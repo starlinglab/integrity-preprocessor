@@ -95,8 +95,9 @@ class Wacz(Validate):
             return False
         elif version == WACZ_VERSION:
             validation_tests += [
-                validate.check_required_contents,
-                validate.frictionless_validate,
+# skip structure checks for express archive page
+#                validate.check_required_contents,
+#                validate.frictionless_validate,
                 validate.check_file_paths,
                 validate.check_file_hashes,
             ]
