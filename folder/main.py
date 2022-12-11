@@ -95,6 +95,8 @@ def generate_metadata_content(
     if index_data:
         if "description" in index_data:
             meta_content["description"] = index_data["description"]
+        if "relatedAssetCid" in index_data:
+            meta_content["relatedAssetCid"] = index_data["relatedAssetCid"]
         if "sourceId" in index_data:
             meta_content["sourceId"] = index_data["sourceId"]
         if "meta_data_private" in index_data:
