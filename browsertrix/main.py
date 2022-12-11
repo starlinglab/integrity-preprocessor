@@ -78,7 +78,7 @@ if "collections" in config_data:
             TARGET_DESCRIPTION[aid] = config_data["collections"][aid]["description"]
                         
         TARGET_ROOT_PATH[aid] = config_data["collections"][aid]["target_path"]
-        TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")        
+        TARGET_PATH_TMP[aid] = os.path.join(TARGET_ROOT_PATH[aid], "tmp")
 
         target_subfolder = "input"
         if "review" in config_data["collections"][aid]:
