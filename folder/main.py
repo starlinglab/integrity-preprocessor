@@ -1,5 +1,4 @@
 from copy import deepcopy
-import copy
 import io
 import datetime
 import dotenv
@@ -65,7 +64,7 @@ def generate_metadata_content(
     extras = meta_extras
     private = meta_private
 
-    meta_content = default_content
+    meta_content = deepcopy(default_content)
 
     if author:
         meta_content["author"] = author
