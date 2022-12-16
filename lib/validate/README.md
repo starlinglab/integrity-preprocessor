@@ -91,7 +91,7 @@ JSON for anonymous signature:
 ```json
 {
     "provider": "Webrecorder ArchiveWeb.page 0.7.9, using warcio.js 1.5.0",
-    "algorithm": "wacz-anonymous-ecdsa-sig",
+    "algorithm": "ecdsa-key-sig",
     "publicKey": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEdyJB4zGpvCzhNblldx8b12sz+ECGk8Ryq4y+bg9woRu3OSKWO2uS+n8CD258iVvg0hP0JRg4C7YxGc7lqGsI9bHj0NaC9b4NXazeuR80iVCg96oTYIOLdWcII9rfaFMU",
     "signature": "mFeJLayQT4Si3/JO3BRDFyw0b90TUSMEOmvNwsQfV1Hwz5pMUgEweu0kx67KwFnaSpgCg7Bs2FKkKsKJgS3GIBnCL169sFX/GH44dUofoGmb25JYLQO5DtZ+KzwHQ270",
     "authenticatedMessage": "sha256:aef48a18637f95a74e8537015a322b3894a88a8a54b310b2e6855d9f370b6b6c",
@@ -104,7 +104,7 @@ JSON for domain signature:
 ```json
 {
     "provider": "authsigner 0.4.0",
-    "algorithm": "wacz-domain-ecdsa-sig",
+    "algorithm": "ecdsa-certificate-sig",
     "custom": {
         "hash": "sha256:a6d08d3709143a395bf3d5d44cb5555d720e431336e993f32504554d6f5d1b15",
         "created": "2022-05-31T15:15:23Z",
