@@ -18,9 +18,9 @@ class metadata:
       "name": "Starling Lab",
   }
   default_content = {
-      "name": "Web archive",
-      "mime": "application/wacz",
-      "description": "Archive collected by browsertrix-cloud",
+      "name": "An archive",
+      "mime": "application/object",
+      "description": "Archive ",
       "author": default_author,
       "extras": {},
       "private": {}
@@ -30,7 +30,6 @@ class metadata:
   def __init__(self) -> None:
     self._content = deepcopy(self.default_content)
   
-
   def set_mime_from_file(self,sourcePath):
     mime = magic.Magic(mime=True)
     meta_mime_type = mime.from_file(sourcePath)
@@ -38,16 +37,15 @@ class metadata:
 
   def add_extras_key(self,extra):
     content = self._content["extras"]
-    for key in content:
-      self._content["extras"][key]=content[key]
+    for key in extra:
+      self._content["extras"][key]=extra[key]
 
   def add_private_element(self,key,value):    
     self._content["private"][key]=value
 
-  def add_private_key(self,extra):
-    content = self._content["private"]
-    for key in content:
-      self._content["private"][key]=content[key]
+  def add_private_key(self,private):
+    for key in private:
+      self._content["private"][key]=private[key]
 
   def author(self,author):
     self._content["author"] = author
@@ -144,44 +142,50 @@ class metadata:
     validator = validate.ProofMode(proofmode_path)
     if not validator.validate():
       raise Exception("proofmode zip fails to validate")
+
     self.validated_signature(validator.validated_sigs_json())
     result={}
     date_create = None
     # ProofMode metadata extraction
+    print (proofmode_path)
     with ZipFile(proofmode_path, "r") as proofmode:
 
       public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
-      for file in proofmode.namelist():
-          # Extract file creation date from zip
-          # and create a py datetime opject
-          x = proofmode.getinfo(file).date_time
-          current_date_create = datetime.datetime(
-                x[0], x[1], x[2], x[3], x[4], x[5], 0
-          )
-          if date_create is None or current_date_create < date_create:
-            date_create = current_date_create
-            result["dateCreate"] = date_create.isoformat()
-            if os.path.splitext(file)[1] == ".json" and "batchproof" not in file:
+      for file in proofmode.namelist():      
 
-                base_file_name = os.path.splitext(file)[0]
-                base_file_name = os.path.splitext(base_file_name)[0]
+        # Extract file creation date from zip
+        # and create a py datetime opject
+        x = proofmode.getinfo(file).date_time
+        current_date_create = datetime.datetime(
+              x[0], x[1], x[2], x[3], x[4], x[5], 0
+        )
+        # set the earliest date as created date
+        if date_create is None or current_date_create < date_create:
+          date_create = current_date_create
+          self._content["dateCreate"] = date_create.isoformat()
 
-                with proofmode.open(file) as f:
-                    json_meta = json.load(f)
+        if os.path.splitext(file)[1] == ".json" and "batchproof" not in file:
 
-                pgp = proofmode.read(base_file_name + ".asc").decode("utf-8")
-                source_filename = os.path.basename(json_meta["File Path"])
-                file_hash = json_meta["File Hash SHA256"]
+          base_file_name = os.path.splitext(file)[0]
+          base_file_name = os.path.splitext(base_file_name)[0]
 
-                result[source_filename] = {
-                    "pgpSignature": pgp,
-                    "pgpPublicKey": public_pgp,
-                    "sha256hash": file_hash,
-                    "dateCreate": current_date_create.isoformat(),
-                    "proofmodeJSON": json_meta,
-                }  
-    self.add_private_key({"proofmode": result})
+          with proofmode.open(file) as f:
+            json_meta = json.load(f)
+
+          pgp = proofmode.read(base_file_name + ".asc").decode("utf-8")
+          source_filename = os.path.basename(json_meta["File Path"])
+          file_hash = json_meta["File Hash SHA256"]
+
+          result[source_filename] = {
+            "pgpSignature": pgp,
+            "pgpPublicKey": public_pgp,
+            "sha256hash": file_hash,
+            "dateCreate": current_date_create.isoformat(),
+            "proofmodeJSON": json_meta,
+          } 
+      print(result)
+      self.add_private_key({"proofmode": result})
 
   def get_content(self):
     return self._content
