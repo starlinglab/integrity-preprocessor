@@ -45,7 +45,6 @@ default_content = {
     "author": default_author,
 }
 
-
 def generate_metadata_content(
     meta_date_created,
     sourcePath,
@@ -175,6 +174,7 @@ class watch_folder:
             logging.info(f"Skipping index.json file")
             return
 
+        legacy_base = ""
         if (
             "processLegacyStarlingCapture" in self.config
             and self.config["processLegacyStarlingCapture"]
@@ -208,7 +208,6 @@ class watch_folder:
             lock_file = self.config["lockFile"]
         _wait_for_file_to_close(target_filename, lock_file)
         target = self.config["targetPath"]
-
         extractName = False
         extractNameCharacters = " ___ "
         if "extractName" in self.config:
@@ -216,59 +215,50 @@ class watch_folder:
             if "extractNameCharacters" in self.config:
                 extractNameCharacters = self.config["extractNameCharacters"]
 
-        author = None
-        if "author" in self.config:
-            author = self.config["author"]
-
-        meta_method = "Generic"
-        if "method" in self.config:
-            meta_method = self.config["method"]
-
         stage_path = os.path.join(target, "tmp")
         output_path = os.path.join(target, "input")
 
         if not os.path.exists(stage_path):
             os.makedirs(stage_path)
 
+        content_metadata = common.metadata()
+        content_metadata.set_mime_from_file(target_filename)
+        
+        print(content_metadata.get_content())
+        if "author" in self.config:
+            content_metadata.author(self.config["author"])
+
+        meta_method = "Generic"
+        if "method" in self.config:
+            meta_method = self.config["method"]
+        content_metadata.description(f"{meta_method.title()} document")
+
         asset_filename = target_filename
         meta_uploader_name = ""
         index_filename = os.path.basename(target_filename)
+
         if extractName:
             fileName = os.path.basename(target_filename)
             tmp = fileName.split(extractNameCharacters, 2)
             if len(tmp) == 2:
-                meta_uploader_name = tmp[0]
+                content_metadata.add_private_element("uploaderName",tmp[0])
                 index_filename = tmp[1]
             else:
-                meta_uploader_name = ""
+                content_metadata.add_private_element("uploaderName","")
                 index_filename = tmp[0]
 
-        bundleFileName = os.path.join(stage_path, sha256asset + ".zip")
-
-        meta_date_create = os.path.getmtime(asset_filename)
-
-        extras = {}
-        private = {}
-        validatedSignatures = None
+        content_metadata.createdate_utcfromtimestamp(os.path.getmtime(asset_filename))
         if "processWacz" in self.config and self.config["processWacz"]:
-            logging.info(f"{asset_filename} Processing file as a WACZ")
-            extras = common.parse_wacz_data_extra(asset_filename)
-            if "validatedSignatures" in extras:
-                validatedSignatures = extras["validatedSignatures"]
-                del extras["validatedSignatures"]
-   
+            content_metadata.process_wacz(asset_filename)
         if "processProofmode" in self.config and self.config["processProofmode"]:
-            logging.info(f"{asset_filename} Processing file as a ProofMode")
-            private["proofmode"] = common.parse_proofmode_data(asset_filename)
-            if "validatedSignatures" in private["proofmode"]:
-                validatedSignatures = private["proofmode"]["validatedSignatures"]
-                del private["proofmode"]["validatedSignatures"]
+            content_metadata.process_proofmode(asset_filename)
 
         if (
             "processLegacyStarlingCapture" in self.config
             and self.config["processLegacyStarlingCapture"]
         ):
             meta_method = "Starling Capture"
+            private={}
             private["starlingCapture"] = {}
             # Parsing lines since some files come with duplicate lines breaking json format
             with open(f"{legacy_base}-meta.json") as file_meta:
@@ -303,15 +293,14 @@ class watch_folder:
 
             metadata_byte = metadata_json_fix.encode("ascii")
             metadata_base64_bytes = base64.b64encode(metadata_byte)
-            base64_string = metadata_base64_bytes.decode("ascii")
-            print(private["starlingCapture"]["signatures"])
+            base64_string = metadata_base64_bytes.decode("ascii")            
 
             private["starlingCapture"]["signatures"][0]["b64AuthenticatedMetadata"] = base64_string
-
+            content_metadata.add_private_key(private)
         # read index file if it exists
         source_path = os.path.dirname(asset_filename)
 
-        index_data = None
+
 
         if os.path.exists(f"{source_path}/index.json"):
             index_file = open(f"{source_path}/index.json", "r")
@@ -319,30 +308,17 @@ class watch_folder:
             index_data = None
             for item in index:
                 if item["filename"] == index_filename:
-                    index_data = item
-                    break
-        content_meta = generate_metadata_content(
-            meta_date_create,
-            asset_filename,
-            meta_uploader_name,
-            extras,
-            private,
-            meta_method,
-            author,
-            index_data,
-        )
+                    content_metadata.set_index(item)
 
-        if validatedSignatures:
-            content_meta["validatedSignatures"]= validatedSignatures
         if "description" in self.config:
-            content_meta["description"] = self.config["description"]
+            content_metadata.set_description(self.config["description"])
 
         if "name" in self.config:
-            content_meta["name"] = self.config["name"]
+            content_metadata.set_name(self.config["name"])
 
         recorder_meta = common.get_recorder_meta("folder")
         out_file = common.add_to_pipeline(
-            asset_filename, content_meta, recorder_meta, stage_path, output_path
+            asset_filename, content_metadata.get_content(), recorder_meta, stage_path, output_path
         )
         logging.info(f"{asset_filename} Created new asset {out_file}")
 
