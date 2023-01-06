@@ -8,7 +8,8 @@ import validate
 from zipfile import ZipFile
 import json
 from warcio.archiveiterator import ArchiveIterator
-
+import logging
+import base64
 
 class metadata:
 
@@ -186,6 +187,50 @@ class metadata:
           } 
       print(result)
       self.add_private_key({"proofmode": result})
+
+  def process_legacy_starling_capture(self,source_filename,metadata_filename, signature_filename):
+    meta_method = "Starling Capture"
+
+    private={}
+    private["starlingCapture"] = {}
+
+    # Parse out only the first line, some files come with duplicate lines breaking json format
+    with open(metadata_filename) as file_meta:
+      lines = file_meta.readlines()
+      if len(lines) > 1:
+        if lines[0] != lines[1]:
+          logging.info(f"{source_filename} - Error lines do not match")
+          raise Exception(f"Error in file {metadata_filename}")
+      metadata_json = json.loads(lines[0])
+      private["starlingCapture"]["metadata"] = metadata_json
+
+    with open(signature_filename) as file_meta:
+      # Parse out only the first line, some files come with duplicate lines breaking json format
+      lines = file_meta.readlines()
+      if len(lines) > 1:
+        if lines[0] != lines[1]:
+          logging.info(f"{source_filename} - Error lines do not match")
+          raise Exception(f"Error in file {signature_filename}")
+      signature_json = json.loads(lines[0])
+      private["starlingCapture"]["signatures"] = signature_json
+
+    # Legacy metadata bug - workaround    
+    metadata_json_fix=deepcopy(metadata_json)
+    metadata_json_fix["information"]=[]
+    metadata_json_fix=json.dumps(metadata_json_fix)
+    metadata_json_fix=metadata_json_fix.replace(" ","")
+    sc = validate.StarlingCapture(source_filename, metadata_json_fix, signature_json)
+    if not sc.validate():
+      raise Exception("Hashes or signatures did not validate")
+    validatedSignatures=sc.validated_sigs_json()
+
+    metadata_byte = metadata_json_fix.encode("ascii")
+    metadata_base64_bytes = base64.b64encode(metadata_byte)
+    base64_string = metadata_base64_bytes.decode("ascii")      
+
+    private["starlingCapture"]["signatures"][0]["b64AuthenticatedMetadata"] = base64_string
+    self._content["validatedSignature"]=validatedSignatures
+    self.add_private_key(private)
 
   def get_content(self):
     return self._content
