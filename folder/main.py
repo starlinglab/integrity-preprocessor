@@ -13,14 +13,11 @@ import magic
 import csv
 import base64
 
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
-import validate
-
-
 from watchdog.observers import Observer
 
 # Kludge
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+import validate
 import integrity_recorder_id
 import common
 
@@ -69,7 +66,7 @@ def _wait_for_file_to_close(filename, lock_file):
 class watch_folder:
     """Class defining a folder to watch"""
     event_handler = None
-
+    legacy_dup_check=[]
     def __init__(self, conf):
 
         # Create source path if it does not exist
@@ -96,12 +93,16 @@ class watch_folder:
         """Function that is triggered whenever a new file is created in a watched folder"""
 
         source_filename = event.src_path # File being created 
+
         target = self.config["targetPath"] # Output Path
         stage_path = os.path.join(target, "tmp")
         output_path = os.path.join(target, "input") 
 
         if not os.path.exists(stage_path):
             os.makedirs(stage_path)
+
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
 
         # Skip index.json if it exists
         if os.path.basename(source_filename) == "index.json":
@@ -122,6 +123,10 @@ class watch_folder:
             ext = tmp[1]
             if ext == ".json":
                 legacy_base = legacy_base[: legacy_base.rindex("-")]
+            source_filename = f"{legacy_base}.jpg"
+            if source_filename in self.legacy_dup_check:
+                logging.info(f"Already processed {source_filename} this asset, skipping")
+                return
             if not os.path.exists(f"{legacy_base}.jpg"):
                 logging.info(f"Skipping - Missing Asset")
                 return
@@ -131,18 +136,17 @@ class watch_folder:
             if not os.path.exists(f"{legacy_base}-signature.json"):
                 logging.info(f"Skipping - Missing Signature")
                 return
-            source_filename = f"{legacy_base}.jpg"
             logging.info(
                 f"Found all 3 files - merging Starling Backend Legacy Content {source_filename}"
             )
+            self.legacy_dup_check.append(source_filename)
 
-        logging.info(f"Start Processing of file {source_filename}")
-        sha256asset = common.sha256sum(source_filename)
+        logging.info(f"Start Processing of file {source_filename}")        
 
         # Wait for file lock is available, and that file is closed and not being written to
         lock_file = ""
         if "lockFile" in self.config:
-            lock_file = self.config["lockFile"]            
+            lock_file = self.config["lockFile"]
         _wait_for_file_to_close(source_filename, lock_file)
 
         content_metadata = common.metadata()
@@ -155,7 +159,6 @@ class watch_folder:
 
         # Lookup index file name base
         index_filename = os.path.basename(source_filename)
-
 
         # If extractName is enabled (dropbox), parse out the uploader name based on extractNameCharacters
         extractName = False
@@ -181,7 +184,6 @@ class watch_folder:
             content_metadata.process_wacz(source_filename)
         if "processProofmode" in self.config and self.config["processProofmode"]:
             content_metadata.process_proofmode(source_filename)
-
         if (
             "processLegacyStarlingCapture" in self.config
             and self.config["processLegacyStarlingCapture"]
@@ -211,9 +213,9 @@ class watch_folder:
 
         recorder_meta = common.get_recorder_meta("folder")
         out_file = common.add_to_pipeline(
-            source_path, content_metadata.get_content(), recorder_meta, stage_path, output_path
+            source_filename, content_metadata.get_content(), recorder_meta, stage_path, output_path
         )
-        logging.info(f"{source_path} Created new asset {out_file}")
+        logging.info(f"{source_filename} Created new asset {out_file}")
 
     def stop(self):
         self.observer.stop()

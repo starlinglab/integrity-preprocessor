@@ -21,7 +21,7 @@ class metadata:
   default_content = {
       "name": "An archive",
       "mime": "application/object",
-      "description": "Archive ",
+      "description": "Archive",
       "author": default_author,
       "extras": {},
       "private": {}
@@ -69,6 +69,9 @@ class metadata:
     if "description" in index_data:
       self._content["description"] = index_data["description"]
 
+    if "name" in index_data:
+      self._content["name"] = index_data["name"]
+
     if "relatedAssetCid" in index_data:
       self._content["relatedAssetCid"] = index_data["relatedAssetCid"]
       
@@ -78,9 +81,10 @@ class metadata:
     if "meta_data_private" in index_data:
       for item in index_data["meta_data_private"]:
         self._content["private"][item] = index_data["meta_data_private"][item]
-        if "meta_data_public" in index_data:
-          for item in index_data["meta_data_public"]:
-            self._content["extras"][item] = index_data["meta_data_public"][item]
+
+    if "meta_data_public" in index_data:
+      for item in index_data["meta_data_public"]:
+        self._content["extras"][item] = index_data["meta_data_public"][item]
 
   def extract_wacz_user_agent(self,wacz_path):
     with ZipFile(wacz_path, "r") as wacz:
@@ -98,9 +102,10 @@ class metadata:
     if not validator.validate():
      raise Exception("WACZ fails to validate")
     self.validated_signature(validator.validated_sigs_json())
-    data = ""
     extras = {}
-  # WACZ metadata extraction
+
+
+    # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
       d = json.loads(wacz.read("datapackage-digest.json"))
       if "signedData" in d:
@@ -128,15 +133,27 @@ class metadata:
           extras["waczTitle"] = d["title"]
 
       extras["pages"] = {}
+      counter = 0
+      description_list = []
       if "pages/pages.jsonl" in wacz.namelist():
           with wacz.open("pages/pages.jsonl") as jsonl_file:
               for line in jsonl_file.readlines():
                   d = json.loads(line)
                   if "url" in d:
                       extras["pages"][d["id"]] = d["url"]
+                      counter=counter+1
+                      if counter < 4:
+                        description_list.append(d["url"])
+                      if counter == 4:
+                        description_list.append(...)            
       else:
           logging.info("Missing pages/pages.jsonl in archive %s", wacz_path)
 
+      pagelist = "[ " + ", ".join(description_list[:3]) + "]"
+      ## TODO: add "on 2022-03-29" to name
+      self.name("Web archive")
+      ## TODO: add  captured using Browsertrix on 2022-03-29 to description
+      self.description(f"Authenticated web archive of {pagelist}")
       self.add_extras_key({"wacz":extras})
 
   def process_proofmode(self,proofmode_path):
@@ -148,7 +165,6 @@ class metadata:
     result={}
     date_create = None
     # ProofMode metadata extraction
-    print (proofmode_path)
     with ZipFile(proofmode_path, "r") as proofmode:
 
       public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
@@ -185,7 +201,6 @@ class metadata:
             "dateCreate": current_date_create.isoformat(),
             "proofmodeJSON": json_meta,
           } 
-      print(result)
       self.add_private_key({"proofmode": result})
 
   def process_legacy_starling_capture(self,source_filename,metadata_filename, signature_filename):
@@ -193,6 +208,8 @@ class metadata:
 
     private={}
     private["starlingCapture"] = {}
+    self.name("Starling Capture authenticated image")
+    self.description("Image captured and authenticated using the Starling Capture app")
 
     # Parse out only the first line, some files come with duplicate lines breaking json format
     with open(metadata_filename) as file_meta:
