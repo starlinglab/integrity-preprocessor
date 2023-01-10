@@ -104,19 +104,24 @@ class metadata:
     self.validated_signature(validator.validated_sigs_json())
     extras = {}
 
+    self._content["mime"]= "application/wacz"
+
 
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
       d = json.loads(wacz.read("datapackage-digest.json"))
+      crawl_type = ""
       if "signedData" in d:
           # auth sign data
           if "domain" in d["signedData"]:
               extras["authsignSoftware"] = d["signedData"]["software"]
               extras["authsignDomain"] = d["signedData"]["domain"]
+              crawl_type="browsertrix"
           elif "publicKey" in d["signedData"]:
               extras["localsignSoftware"] = d["signedData"]["software"]
               extras["localsignPublicKey"] = d["signedData"]["publicKey"]
               extras["localsignSignature"] = d["signedData"]["signature"]
+              crawl_type="local"
           else:
               logging.warning(f"{wacz_path} WACZ missing signature")
 
@@ -126,6 +131,8 @@ class metadata:
       extras["waczVersion"] = d["wacz_version"]
       extras["software"] = d["software"]
       extras["dateCrawled"] = d["created"]
+      crawl_date = extras["dateCrawled"].split("T")[0]
+
       if user_agent:
           extras["userAgentCrawled"] = user_agent
 
@@ -150,10 +157,13 @@ class metadata:
           logging.info("Missing pages/pages.jsonl in archive %s", wacz_path)
 
       pagelist = "[ " + ", ".join(description_list[:3]) + "]"
-      ## TODO: add "on 2022-03-29" to name
-      self.name("Web archive")
-      ## TODO: add  captured using Browsertrix on 2022-03-29 to description
-      self.description(f"Authenticated web archive of {pagelist}")
+      self.name(f"WebArchive crawled on {crawl_date}")
+      by_line = ""
+      if crawl_type=="local":
+        by_line = " locally"
+      if crawl_type==" using Browsertrix":
+        by_line = " using Browsertrix"
+      self.description(f"Authenticated web archive of {pagelist} captured{by_line} on {crawl_date}")
       self.add_extras_key({"wacz":extras})
 
   def process_proofmode(self,proofmode_path):
