@@ -157,8 +157,16 @@ class watch_folder:
             meta_method = self.config["method"]
         content_metadata.description(f"{meta_method.title()} document")
 
-        # Lookup index file name base
-        index_filename = os.path.basename(source_filename)
+
+        # Name of filename that will be matched in the index.jsopn
+        # This can differ if (for example) name is prepended to it
+        index_filename = file_name = os.path.basename(source_filename)
+        source_path = os.path.dirname(source_filename)
+
+        extra_folder = { 
+            "uploadFilename": file_name,
+            "uploadDirectory": source_path
+        }
 
         # If extractName is enabled (dropbox), parse out the uploader name based on extractNameCharacters
         extractName = False
@@ -169,17 +177,19 @@ class watch_folder:
                 extractNameCharacters = self.config["extractNameCharacters"]
 
         if extractName:
-            file_name = os.path.basename(source_filename)
             tmp = file_name.split(extractNameCharacters, 2)
             if len(tmp) == 2:
-                content_metadata.add_private_element("uploaderName",tmp[0])
+                extra_folder["uploaderName"]=tmp[0]
                 index_filename = tmp[1]
             else:
-                content_metadata.add_private_element("uploaderName","")
+                extra_folder["uploaderName"]=""
                 index_filename = tmp[0]
+        content_metadata.add_private_key({"folder": extra_folder})
 
+        # use the OS's file created date as dateCreate
         content_metadata.createdate_utcfromtimestamp(os.path.getmtime(source_filename))
 
+        # Content specific processing
         if "processWacz" in self.config and self.config["processWacz"]:
             content_metadata.process_wacz(source_filename)
         if "processProofmode" in self.config and self.config["processProofmode"]:
@@ -190,9 +200,7 @@ class watch_folder:
         ):
             content_metadata.process_legacy_starling_capture(f"{legacy_base}.jpg",f"{legacy_base}-meta.json",f"{legacy_base}-signature.json")
 
-        # Read index file if it exists and apply changes
-        source_path = os.path.dirname(source_filename)
-
+        # Read entries in config file, if it exists, and apply changes
         if "description" in self.config:
             content_metadata.set_description(self.config["description"])
 
@@ -203,6 +211,7 @@ class watch_folder:
         if "author" in self.config:
             content_metadata.author(self.config["author"])
 
+        # Read entries from index, if it exists, and apply changes
         if os.path.exists(f"{source_path}/index.json"):
             index_file = open(f"{source_path}/index.json", "r")
             index = json.load(index_file)
