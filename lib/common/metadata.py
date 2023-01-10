@@ -30,7 +30,8 @@ class metadata:
   _content = {}
   def __init__(self) -> None:
     self._content = deepcopy(self.default_content)
-  
+    self._content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
+
   def set_mime_from_file(self,sourcePath):
     mime = magic.Magic(mime=True)
     meta_mime_type = mime.from_file(sourcePath)
@@ -63,7 +64,6 @@ class metadata:
   def createdate_utcfromtimestamp(self,meta_date_created):
     create_datetime = datetime.datetime.utcfromtimestamp(meta_date_created)
     self._content["dateCreated"] = create_datetime.isoformat() + "Z"
-    self._content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
 
   def set_index(self,index_data):
     if "description" in index_data:
@@ -116,7 +116,7 @@ class metadata:
           elif "publicKey" in d["signedData"]:
               extras["localsignSoftware"] = d["signedData"]["software"]
               extras["localsignPublicKey"] = d["signedData"]["publicKey"]
-              extras["localsignSignaturey"] = d["signedData"]["signature"]
+              extras["localsignSignature"] = d["signedData"]["signature"]
           else:
               logging.warning(f"{wacz_path} WACZ missing signature")
 
@@ -169,7 +169,7 @@ class metadata:
 
       public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
-      for file in proofmode.namelist():      
+      for file in proofmode.namelist():
 
         # Extract file creation date from zip
         # and create a py datetime opject
@@ -180,7 +180,7 @@ class metadata:
         # set the earliest date as created date
         if date_create is None or current_date_create < date_create:
           date_create = current_date_create
-          self._content["dateCreate"] = date_create.isoformat()
+          self._content["dateCreated"] = date_create.isoformat()
 
         if os.path.splitext(file)[1] == ".json" and "batchproof" not in file:
 
@@ -198,7 +198,6 @@ class metadata:
             "pgpSignature": pgp,
             "pgpPublicKey": public_pgp,
             "sha256hash": file_hash,
-            "dateCreate": current_date_create.isoformat(),
             "proofmodeJSON": json_meta,
           } 
       self.add_private_key({"proofmode": result})
