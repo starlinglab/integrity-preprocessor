@@ -340,6 +340,10 @@ def process_ingestor(ingestor):
                                 ] = common.parse_proofmode_data(
                                     localpath + "/" + filename + ".zip"
                                 )
+                                if "validatedSignatures" in  content_meta["private"]["proofmode"]:
+                                    content_meta["validatedSignatures"]=content_meta["private"]["proofmode"]["validatedSignatures"]
+                                    del content_meta["private"]["proofmode"]["validatedSignatures"]
+
                                 ##TODO## Should this be moved into parse_proofmode_data?
                                 asset_type = "content"
                                 for asset_filename in content_meta["private"]["proofmode"]:
