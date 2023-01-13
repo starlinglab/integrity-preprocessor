@@ -70,6 +70,19 @@ def uid_from_exif(filename):
     uid = ''.join(format(x, '02x') for x in uid_bytes)
     return uid
   return ""
+####### XMP and EXIT Stuff
+def date_create_from_exif(filename):
+  """
+  Extract Unique Identifier from EXIF data in a JPG
+  """
+  f = open(filename, 'rb')
+  tags = exifread.process_file(f)
+  print(tags)
+  if "EXIF DateTimeOriginal" in tags:
+    datetime = tags["EXIF DateTimeOriginal"].values
+    return datetime
+  return ""
+  
 
 def set_xmp_document_id(filename, uid):
     """
@@ -216,6 +229,7 @@ async def fotoware_uploaded(request):
 
         doc_id = get_xmp_document_id(tmp_file)
 
+        # Check Sig66
         is66="1"
         if doc_id != "":
             print (f"doc_id = {doc_id}, cant be a 66 image!")
@@ -231,22 +245,38 @@ async def fotoware_uploaded(request):
         name = os.path.splitext(original_filename)[0]
         target_filename = "error.jpg"
 
+        content_metadata = common.metadata()
+        content_metadata.set_mime_from_file(tmp_file)
+        content_metadata.name(f"Authenticated Camera Photo")
+        content_metadata.description(f"Photo uploaded through FotoWare and authenticed with Sig66")
+        
         if res==True and is66 == "1" :
+            sig66_meta={}
+            
             current_device = get_device_from_key(s.public_key)
             if current_device=="":
                 current_device="unknown"
+
+            sig66_meta["device"]=current_device
             print(f"Device is {current_device}")
+            
             uid = uid_from_exif(tmp_file)
             print(f"UID is {uid}")
-            # set xmp UUID
+            sig66_meta["exif_uid"]=uid
+            # set xmp UUID            
             set_xmp_document_id(tmp_file,uid)
             print(f"Set XMP to UID")
-            # generate filename
 
+            # generate filename
             target_filename = f"{device} - {name}{extension}"
+            sig66_meta["original_filename"]=f"{name}{extension}"
+            sig66_meta["target_filename"]=target_filename
+
             print(f"Named {target_filename}")
             os.rename(tmp_file,f"/tmp/{target_filename}")
             await fotoware_upload(f"/tmp/{target_filename}",target_filename)
+            content_metadata.add_private_key({"sig66": sig66_meta})
+
 
             # Metadata component
         else:
@@ -259,34 +289,23 @@ async def fotoware_uploaded(request):
         # Starling Pipeline
 
         # Extract from exif?
-        meta_date_create = datetime.datetime.utcnow().isoformat()
+        content_metadata.createdate_utcfromtimestamp(date_create_from_exif(tmp_file))
         asset_filename = f"/tmp/{target_filename}"
-        extras = {
-            "signatures": s.validated_sigs_json()
-        }
-        private = {}            
+        content_metadata.validated_signature(s.validated_sigs_json())
 
-        content_meta = generate_metadata_content(
-            meta_date_create,
-            asset_filename,
-            extras,
-            private,
-            None,
-            None
-        )
 
         recorder_meta = common.get_recorder_meta("http")
 
         print(asset_filename)
-        print( content_meta)
+        print( content_metadata)
         print( recorder_meta)
         print( f"{integrity_path}/tmp")
         print( f"{integrity_path}/input")
 
         # C2PA Inject
-        await c2pa_create_claim(asset_filename,"/tmp/test123.json",content_meta)
+        await c2pa_create_claim(asset_filename,"/tmp/test123.json",content_metadata)
         out_file = common.add_to_pipeline(
-            asset_filename, content_meta, recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
+            asset_filename, content_metadata.get_content(), recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
         )
 
         print(f"{asset_filename} Created new asset {out_file}")
@@ -314,57 +333,6 @@ async def fotoware_uploaded(request):
 
         return web.json_response(response, status=response.get("status_code"))
 
-def generate_metadata_content(
-    meta_date_created,
-    sourcePath,
-    meta_extras,
-    meta_private,
-    author,
-    index_data,
-):
-
-    extras = meta_extras
-    private = meta_private
-
-    default_author = {
-        "@type": "Organization",
-        "identifier": "https://starlinglab.org",
-        "name": "Starling Lab",
-    }
-
-    default_content = {
-        "name": "Authenticated Image",
-        "mime": "application/jpeg",
-        "description": "Image authenticated on camera",
-        "author": default_author,
-    }
-
-    meta_content = default_content
-
-    if author:
-        meta_content["author"] = author    
-
-    #create_datetime = datetime.datetime.utcfromtimestamp(meta_date_created)
-    create_datetime = meta_date_created
-    meta_content["dateCreated"] = meta_date_created #create_datetime.isoformat() + "Z"
-    meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
-
-    if index_data:
-        if "description" in index_data:
-            meta_content["description"] = index_data["description"]
-        if "sourceId" in index_data:
-            meta_content["sourceId"] = index_data["sourceId"]
-        if "meta_data_private" in index_data:
-            for item in index_data["meta_data_private"]:
-                private[item] = index_data["meta_data_private"][item]
-        if "meta_data_public" in index_data:
-            for item in index_data["meta_data_public"]:
-                extras[item] = index_data["meta_data_public"][item]
-
-    meta_content["extras"] = extras
-    meta_content["private"] = private
-
-    return meta_content
     
 async def fotoware_ingested(request):
     with error_handling_and_response() as response:
