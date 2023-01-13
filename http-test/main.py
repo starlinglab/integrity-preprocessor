@@ -294,7 +294,7 @@ app = web.Application(
     ]
 )
 app.add_routes([web.post("/v1/assets/create", create)])
-app.add_routes([web.post("/v1/fotoware/ingestedasset", fotoware.fotoware_uploaded)])
+app.add_routes([web.post("/v1/fotoware/ingestedasset", fotoware.fotoware_ingested)])
 #, fotoware.fotoware_ingested)])
 app.add_routes([web.post("/v1/fotoware/modifiedasset", fotoware.fotoware_modified)])
 app.add_routes([web.post("/v1/fotoware/deletedasset", fotoware.fotoware_deleted)])

@@ -282,6 +282,9 @@ async def fotoware_uploaded(request):
         print( recorder_meta)
         print( f"{integrity_path}/tmp")
         print( f"{integrity_path}/input")
+
+        # C2PA Inject
+        await c2pa_create_claim(asset_filename,"/tmp/test123.json",content_meta)
         out_file = common.add_to_pipeline(
             asset_filename, content_meta, recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
         )
@@ -382,3 +385,46 @@ async def fotoware_deleted(request):
         print(request)
         print(response)
     return web.json_response(response, status=response.get("status_code"))
+
+def _get_index_by_label(c2pa, label):
+    return [i for i, o in enumerate(c2pa["assertions"]) if o["label"] == label][0]
+
+async def c2pa_create_claim(source_file,target_file,content_metadata): 
+    print("====================STARTING CLAIM===========================")
+    with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_template.json") as c2pa_template_handle:
+        c2pa_1= json.load(c2pa_template_handle)
+        c2pa_1["claim_generator"] = "Sig66"
+
+        # Insert authorship information
+        m = _get_index_by_label(c2pa_1, "stds.schema-org.CreativeWork")
+        c2pa_1["assertions"][m]["data"]["author"][0]["@type"] = content_metadata.get("author").get("@type")
+        c2pa_1["assertions"][m]["data"]["author"][0]["identifier"] = content_metadata.get("author").get("identifier")
+        c2pa_1["assertions"][m]["data"]["author"][0]["name"] = content_metadata.get("author").get("name")        
+
+        # Insert c2pa.created actions
+        m = _get_index_by_label(c2pa_1, "c2pa.actions")
+        n = [i for i, o in enumerate(c2pa_1["assertions"][m]["data"]["actions"]) if o["action"] == "c2pa.created"][0]
+        c2pa_1["assertions"][m]["data"]["actions"][n]["when"] = content_metadata.get("dateCreate")
+
+        # Insert identifier
+        m = _get_index_by_label(c2pa_1, "org.starlinglab.integrity")
+        content_id_starling_capture = content_metadata.get("private", {}).get("starlingCapture", {}).get("metadata", {}).get("proof", {}).get("hash")
+        if content_id_starling_capture:
+            ## OID
+            c2pa_1["assertions"][m]["data"]["starling:identifier"] = content_id_starling_capture
+
+        # Insert signatures
+        c2pa_1["assertions"][m]["data"]["starling:signatures"] = []
+        for sig in content_metadata.get("validatedSignatures", []):
+            x = {}
+            if sig.get("provider"): x["starling:provider"] = sig.get("provider")
+            if sig.get("algorithm"): x["starling:algorithm"] = sig.get("algorithm")
+            if sig.get("publicKey"): x["starling:publicKey"] = sig.get("publicKey")
+            if sig.get("signature"): x["starling:signature"] = sig.get("signature")
+            if sig.get("authenticatedMessage"): x["starling:authenticatedMessage"] = sig.get("authenticatedMessage")
+            if sig.get("authenticatedMessageDescription"): x["starling:authenticatedMessageDescription"] = sig.get("authenticatedMessageDescription")
+            if sig.get("custom"): x["starling:custom"] = sig.get("custom")
+            c2pa_1["assertions"][m]["data"]["starling:signatures"].append(x)
+
+        with open(f"{source_file}.json", "w") as man:
+            json.dump(c2pa_1, man)
