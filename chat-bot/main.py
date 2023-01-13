@@ -37,25 +37,28 @@ def start_metadata_content(ingestor, meta_chat):
     Raises:
         Exception not at this time
     """
+
+    meta_content_object = common.metadata()
+
     bot_type = ingestor["type"]
+    bot_metadata={
+        "chatbot": bot_type
+    }    
 
-    # Prepare metadata content
-    meta_content = deepcopy(default_content)    
-    meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
-    meta_content["extras"]["botType"] = bot_type
-
+    min_date=""
+    max_date=""
     # Prepares bo specific metadata content
     if bot_type == "slack":
-        meta_content["private"]["slack"] = {}
-        meta_content["private"]["slack"]["botAccount"] = ingestor["botAccount"]
-        meta_content["private"]["slack"]["workspace"] = ingestor["workspace"]
+        bot_metadata["slack"] = {}
+        bot_metadata["slack"]["botAccount"] = ingestor["botAccount"]
+        bot_metadata["slack"]["workspace"] = ingestor["workspace"]
     if bot_type == "signal":
-        meta_content["private"]["signal"] = {}
+        bot_metadata["signal"] = {}
         if "phone" in ingestor:
-            meta_content["private"]["signal"]["phone"] = ingestor["phone"]
+            bot_metadata["signal"]["phone"] = ingestor["phone"]
     if bot_type == "telegram":
-        meta_content["private"]["telegram"] = {}
-        meta_content["private"]["telegram"]["botAccount"] = ingestor["botAccount"]    
+        bot_metadata["telegram"] = {}
+        bot_metadata["telegram"]["botAccount"] = ingestor["botAccount"]    
 
     if "minDate" in meta_chat:
         meta_min_date = meta_chat["minDate"]
@@ -88,8 +91,9 @@ def start_metadata_content(ingestor, meta_chat):
 
         else:
             cosmetic_date = "an unknown date"
+        
 
-        meta_content["name"] = f"{bot_type.title()} archive on {cosmetic_date}"
+        meta_content_object.set_name( f"{bot_type.title()} archive on {cosmetic_date}")
 
         # Prepare channel list
         channel_text = ""
@@ -97,19 +101,21 @@ def start_metadata_content(ingestor, meta_chat):
             channel_list = ",".join(meta_channels)
             channel_text = f" of [ {channel_list} ]"
 
-        meta_content[
-            "description"
-        ] = f"Archive{channel_text} by {bot_type.title()} bot starting on {cosmetic_date}{cosmetic_time}"
+        meta_content_object.set_description(f"Archive{channel_text} by {bot_type.title()} bot starting on {cosmetic_date}{cosmetic_time}")
 
-        meta_content["extras"]["channels"] = meta_channels
-        meta_content["extras"]["dateRange"] = {"from": min_date, "to": max_date}
+        bot_metadata_extras= {
+            "channels": meta_channels,
+            "dateRange" : {"from": min_date, "to": max_date}
+        }
+        meta_content_object.add_private_key({"chatbot":bot_metadata})
+        meta_content_object.add_extras_key({"chatbot": bot_metadata_extras})
 
-        meta_content["dateCreated"] = meta_date_create
+        meta_content_object.createdate_utcfromtimestamp(meta_date_create)
 
-    return meta_content
+    return meta_content_object
 
 
-def zipFolder(zipfile, path):
+def zip_folder(zipfile, path):
     """Creates a zip file from a folder
     Args:
         zipfile: path to zipfile location
@@ -300,34 +306,32 @@ def process_ingestor(ingestor):
         for item in os.listdir(localpath):
             if os.path.isfile(os.path.join(localpath, item)):
                 try:
-                    content_meta = start_metadata_content(ingestor_config, {})
+                    content_meta_object = start_metadata_content(ingestor_config, {})
                     filesplit = os.path.splitext(item)
                     filename = filesplit[0]
                     fileext = filesplit[1]
 
                     # set datCreate to file date/time
                     date_file_created = os.path.getmtime(os.path.join(localpath, item))
-                    content_meta["dateCreated"] = datetime.datetime.fromtimestamp(date_file_created).isoformat() + "Z"
+                    content_meta_object.createdate_utcfromtimestamp(datetime.datetime.fromtimestamp(date_file_created).isoformat())
 
+                    
                     # Only look for zip files
                     if fileext == ".zip":
+                        signal_metadata  = {}
                         logging.info(f"FileMode - Parsing {item}")
                         with open(localpath + "/" + filename + ".json", "r") as f:
-                            signal_metadata = json.load(f)
-                            content_meta["private"]["signal"] = signal_metadata
+                            signal_metadata = json.load(f)                            
 
                         # additional specific processing
-                        logging.info(
-                            f"FileMode - Parsing {item} - Matching "
-                            + content_meta["private"]["signal"]["source"]
-                        )
+                        logging.info(f"FileMode - Parsing {item} - Matching {signal_metadata['source']}")
 
                         ##TODO## Assumes signal
-                        if content_meta["private"]["signal"]["source"] in user_config:
-                            user = user_config[content_meta["private"]["signal"]["source"]]
+                        if signal_metadata["source"] in user_config:
+                            user = user_config[signal_metadata["source"]]
                             output_path=user["targetpath"]
                             logging.info(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
-                            content_meta["author"] = user["author"]
+                            content_meta_object.set_author("author") = user["author"]
 
                             ##TODO## org and collection ?
 
@@ -447,7 +451,7 @@ def process_ingestor(ingestor):
                                 tmpFolder, ingestor + str(folderDateTime.timestamp()) + ".zip"
                             )
                             with zipfile.ZipFile(temp_filename, "w") as archive:
-                                zipFolder(archive, os.path.join(localpath, item))
+                                zip_folder(archive, os.path.join(localpath, item))
 
                             content_meta = start_metadata_content(
                                 ingestor_config,
