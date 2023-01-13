@@ -1,7 +1,7 @@
+import json
 import os
 import subprocess
 from zipfile import ZipFile
-import csv
 import shutil
 
 from .common import Validate, read_file, sha256sum
@@ -35,6 +35,8 @@ class ProofMode(Validate):
         return "proofmode"
 
     def validate(self) -> bool:
+        found_json = False
+
         with ZipFile(self.zip_path, "r") as zipf:
             # Get dearmored key
             dearmored_key_path = os.path.join(self.tmp_dir, "dearmored_key")
@@ -70,17 +72,12 @@ class ProofMode(Validate):
                         "authenticatedMessageDescription": self.auth_msg_desc,
                     }
 
-                if os.path.splitext(file)[1] == ".csv" and "batchproof.csv" not in file:
-                    # It's a CSV with metadata - use it to verify the data file
-                    # Data file is usually a JPEG with a non-standard name
-                    csv_reader = csv.reader(
-                        zipf.read(file).decode("utf-8").splitlines(), delimiter=","
-                    )
-                    next(csv_reader)  # Skip header row
-                    row = next(csv_reader)
-                    file_hash = row[0]
-                    file_name = os.path.basename(row[27])
-                    self.provider = row[16]
+                if os.path.splitext(file)[1] == ".json":
+                    with zipf.open(file) as proofmode:
+                        metadata = json.load(proofmode)
+                        file_hash = metadata["File Hash SHA256"]
+                        file_name = os.path.basename(metadata["File Path"])
+                        self.provider = metadata["Notes"]
 
                     # Validate data signature
                     data_path = zipf.extract(file_name, path=self.tmp_dir)
@@ -91,12 +88,18 @@ class ProofMode(Validate):
                         shutil.rmtree(self.tmp_dir)
                         return False
 
+                    found_json = True
+
                     # It validated, add it to the data
                     self.files[file_name] = {
                         "signature": read_file(sig_path),
                         "authenticatedMessage": sha256sum(data_path),
                         "authenticatedMessageDescription": self.auth_msg_desc,
                     }
+
+        if not found_json:
+            # Proofmode ZIP has no JSON metadata file and must be considered invalid
+            return False
 
         shutil.rmtree(self.tmp_dir)
         return True
@@ -138,7 +141,7 @@ class ProofMode(Validate):
         )
         if proc.returncode == 0:
             return True
-        if proc.returncode == 1:
+        if proc.returncode == 1 or proc.returncode == 2:
             return False
         # Some other unexpected return code, means an error has occured
         proc.check_returncode()

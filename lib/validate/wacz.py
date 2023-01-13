@@ -95,8 +95,9 @@ class Wacz(Validate):
             return False
         elif version == WACZ_VERSION:
             validation_tests += [
-                validate.check_required_contents,
-                validate.frictionless_validate,
+# skip structure checks for express archive page
+#                validate.check_required_contents,
+#                validate.frictionless_validate,
                 validate.check_file_paths,
                 validate.check_file_hashes,
             ]
@@ -133,7 +134,7 @@ class Wacz(Validate):
 
                 self.is_domain_sig = False
                 self.provider = digest["signedData"]["software"]
-                self.algorithm = "wacz-anonymous-ecdsa-sig"
+                self.algorithm = "ecdsa-key-sig"
                 self.public_key = digest["signedData"]["publicKey"]
                 self.signature = digest["signedData"]["signature"]
                 self.auth_msg = digest["signedData"]["hash"]
@@ -169,7 +170,7 @@ class Wacz(Validate):
 
                 self.is_domain_sig = True
                 self.provider = digest["signedData"]["software"]
-                self.algorithm = "wacz-domain-ecdsa-sig"
+                self.algorithm = "ecdsa-certificate-sig"
                 self.custom = digest["signedData"]
 
                 # Verify it using authsign package, this is the same as POSTing

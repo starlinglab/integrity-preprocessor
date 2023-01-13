@@ -9,10 +9,18 @@ import logging
 import integrity_recorder_id
 from warcio.archiveiterator import ArchiveIterator
 
+import sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../")
 import validate
 import integrity_recorder_id
 
 integrity_recorder_id.build_recorder_id_json()
+
+from  .metadata import metadata
+
+__all__ = [
+    "metadata"
+]
 
 metdata_file_timestamp = 0
 
@@ -99,14 +107,18 @@ def extract_wacz_user_agent(wacz_path):
 
 
 def parse_wacz_data_extra(wacz_path):
-#    if not validate.Wacz(wacz_path).validate():
-#        raise Exception("WACZ fails to validate")
+    validator = validate.Wacz(wacz_path)
+    if not validator.validate():
+        raise Exception("WACZ fails to validate")
+
+    data = ""
+    extras = {
+        "validatedSignatures": validator.validated_sigs_json()
+    }
 
     # WACZ metadata extraction
     with ZipFile(wacz_path, "r") as wacz:
         d = json.loads(wacz.read("datapackage-digest.json"))
-        extras = {}
-
         if "signedData" in d:
             # auth sign data
             if "domain" in d["signedData"]:
@@ -146,11 +158,15 @@ def parse_wacz_data_extra(wacz_path):
 
 ## Proof mode processing
 def parse_proofmode_data(proofmode_path):
-    if not validate.ProofMode(proofmode_path).validate():
+    validator = validate.ProofMode(proofmode_path)
+    if not validator.validate():
         raise Exception("proofmode zip fails to validate")
 
     data = ""
-    result = {}
+    result = {
+        "validatedSignatures": validator.validated_sigs_json()
+    }
+
     date_create = None
     # ProofMode metadata extraction
     with ZipFile(proofmode_path, "r") as proofmode:
@@ -188,7 +204,5 @@ def parse_proofmode_data(proofmode_path):
                 }
 
             result["dateCreate"] = date_create.isoformat()
-
-    shutil.rmtree(this_tmp_dir)
 
     return result
