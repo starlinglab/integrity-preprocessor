@@ -1,3 +1,4 @@
+import subprocess
 import datetime
 import os
 import sys
@@ -79,8 +80,9 @@ def date_create_from_exif(filename):
   tags = exifread.process_file(f)
   print(tags)
   if "EXIF DateTimeOriginal" in tags:
-    datetime = tags["EXIF DateTimeOriginal"].values
-    return datetime
+    original_date_time = tags["EXIF DateTimeOriginal"].values
+    original_date_timestamp = datetime.datetime.strptime(original_date_time,"%Y:%m:%d %H:%M:%S").timestamp()
+    return original_date_timestamp
   return ""
   
 
@@ -274,7 +276,7 @@ async def fotoware_uploaded(request):
 
             print(f"Named {target_filename}")
             os.rename(tmp_file,f"/tmp/{target_filename}")
-            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
+#            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
             content_metadata.add_private_key({"sig66": sig66_meta})
 
 
@@ -284,13 +286,16 @@ async def fotoware_uploaded(request):
                 is66 = "unverified"
             target_filename = f"{is66} - {name}{extension}"
             os.rename(tmp_file,f"/tmp/{target_filename}")
-            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
+#            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
         
         # Starling Pipeline
 
         # Extract from exif?
-        content_metadata.createdate_utcfromtimestamp(date_create_from_exif(tmp_file))
         asset_filename = f"/tmp/{target_filename}"
+        date_create_exif = date_create_from_exif(asset_filename)
+        print(date_create_exif)
+        content_metadata._content["dateCreate"]=date_create_exif
+       
         content_metadata.validated_signature(s.validated_sigs_json())
 
 
@@ -303,7 +308,7 @@ async def fotoware_uploaded(request):
         print( f"{integrity_path}/input")
 
         # C2PA Inject
-        await c2pa_create_claim(asset_filename,"/tmp/test123.json",content_metadata)
+        await c2pa_create_claim(asset_filename,"/tmp/result.c2pa.json",content_metadata.get_content())
         out_file = common.add_to_pipeline(
             asset_filename, content_metadata.get_content(), recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
         )
@@ -372,18 +377,21 @@ async def c2pa_create_claim(source_file,target_file,content_metadata):
         # Insert c2pa.created actions
         m = _get_index_by_label(c2pa_1, "c2pa.actions")
         n = [i for i, o in enumerate(c2pa_1["assertions"][m]["data"]["actions"]) if o["action"] == "c2pa.created"][0]
-        c2pa_1["assertions"][m]["data"]["actions"][n]["when"] = content_metadata.get("dateCreate")
+        create_date = datetime.datetime.fromtimestamp(content_metadata.get("dateCreate"))
+        c2pa_1["assertions"][m]["data"]["actions"][n]["when"] = create_date.isoformat()
 
         # Insert identifier
         m = _get_index_by_label(c2pa_1, "org.starlinglab.integrity")
-        content_id_starling_capture = content_metadata.get("private", {}).get("starlingCapture", {}).get("metadata", {}).get("proof", {}).get("hash")
+        content_id_starling_capture = content_metadata.get("private", {}).get("sig66", {}).get("exif_uid")
         if content_id_starling_capture:
             ## OID
             c2pa_1["assertions"][m]["data"]["starling:identifier"] = content_id_starling_capture
 
         # Insert signatures
         c2pa_1["assertions"][m]["data"]["starling:signatures"] = []
-        for sig in content_metadata.get("validatedSignatures", []):
+        print(json.dumps(content_metadata,indent=2))
+
+        for sig in content_metadata.get("validatedSignature", []):
             x = {}
             if sig.get("provider"): x["starling:provider"] = sig.get("provider")
             if sig.get("algorithm"): x["starling:algorithm"] = sig.get("algorithm")
@@ -396,3 +404,7 @@ async def c2pa_create_claim(source_file,target_file,content_metadata):
 
         with open(f"{source_file}.json", "w") as man:
             json.dump(c2pa_1, man)
+        p_c2patool = "/root/.cargo/bin/c2patool"
+        p = subprocess.run([f"{p_c2patool}", f"{source_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"], capture_output=True)
+        print([f"{p_c2patool}", f"{source_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"])
+        print(f"C2PA FILE AT {target_file}")
