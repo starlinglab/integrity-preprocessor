@@ -173,12 +173,16 @@ class metadata:
 
     self.validated_signature(validator.validated_sigs_json())
     result={}
+
+    self._content["mime"]= "application/zip"
+
     date_create = None
     # ProofMode metadata extraction
     with ZipFile(proofmode_path, "r") as proofmode:
 
       public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
+      asset_type = ""
       for file in proofmode.namelist():
 
         # Extract file creation date from zip
@@ -191,7 +195,7 @@ class metadata:
         if date_create is None or current_date_create < date_create:
           date_create = current_date_create
           self._content["dateCreated"] = date_create.isoformat()
-
+        
         if os.path.splitext(file)[1] == ".json" and "batchproof" not in file:
 
           base_file_name = os.path.splitext(file)[0]
@@ -204,6 +208,22 @@ class metadata:
           source_filename = os.path.basename(json_meta["File Path"])
           file_hash = json_meta["File Hash SHA256"]
 
+          current_asset_type = ""
+          ext = os.path.splitext(source_filename)[1]
+          if ext in [".jpg", ".png", ".heic", ".jpeg"]:
+            current_asset_type = "image"
+          elif ext in [".wav", ".m4a", ".mp3"]:
+            current_asset_type = "audio"
+          elif ext in [".mp4", ".m4v", ".avi", ".mov"]:
+            current_asset_type = "video"
+          else:
+            asset_type="content"
+
+          if asset_type == "":
+            asset_type = current_asset_type
+          elif asset_type != current_asset_type:
+            asset_type = "mixed content"
+            
           result[source_filename] = {
             "pgpSignature": pgp,
             "pgpPublicKey": public_pgp,
@@ -211,6 +231,10 @@ class metadata:
             "proofmodeJSON": json_meta,
           } 
       self.add_private_key({"proofmode": result})
+      self._asset_type=asset_type
+
+      self.name(f"Authenticated {asset_type}")
+      self.description(f"{asset_type.title()} with ProofMode metadata")
 
   def process_legacy_starling_capture(self,source_filename,metadata_filename, signature_filename):
     meta_method = "Starling Capture"

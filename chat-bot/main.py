@@ -14,7 +14,7 @@ import traceback
 # Kludge
 import sys
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import common
 logging = common.logging
 
@@ -277,7 +277,7 @@ def process_ingestor(ingestor):
     meta_min_date = -1
     meta_max_date = -1
     meta_data = {}
-
+    recorder_meta = {}
     # Prepare injestor specific tasks
     if ingestor_config["type"] == "telegram":
         localpath = ingestor_config["localpath"]
@@ -303,18 +303,18 @@ def process_ingestor(ingestor):
         if not os.path.isdir(error_path):
             os.mkdir(error_path, 0o660)
 
+        content_meta_object = start_metadata_content(ingestor_config, {})
         for item in os.listdir(localpath):
             if os.path.isfile(os.path.join(localpath, item)):
                 try:
-                    content_meta_object = start_metadata_content(ingestor_config, {})
+
                     filesplit = os.path.splitext(item)
                     filename = filesplit[0]
                     fileext = filesplit[1]
 
                     # set datCreate to file date/time
                     date_file_created = os.path.getmtime(os.path.join(localpath, item))
-                    content_meta_object.createdate_utcfromtimestamp(datetime.datetime.fromtimestamp(date_file_created).isoformat())
-
+                    content_meta_object.createdate_utcfromtimestamp(date_file_created)
                     
                     # Only look for zip files
                     if fileext == ".zip":
@@ -331,41 +331,23 @@ def process_ingestor(ingestor):
                             user = user_config[signal_metadata["source"]]
                             output_path=user["targetpath"]
                             logging.info(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
-                            content_meta_object.set_author("author") = user["author"]
+                            content_meta_object.author(user["author"])
 
-                            ##TODO## org and collection ?
+                        content_meta_object.add_private_element("signal", signal_metadata)
 
                         # Preform any specific file format processing
                         if "processing" in ingestor_config:
-                            logging.info(f"FileMode - parsing {item} - processing Proofmode")
+                            logging.info(f"FileMode - parsing {item} - processing {ingestor_config['processing']}")
+                            content_meta_proofmode={}
+
                             if ingestor_config["processing"] == "proofmode":
-                                content_meta["private"][
-                                    "proofmode"
-                                ] = common.parse_proofmode_data(
+                                content_meta_object.process_proofmode(
                                     localpath + "/" + filename + ".zip"
                                 )
-                                if "validatedSignatures" in  content_meta["private"]["proofmode"]:
-                                    content_meta["validatedSignatures"]=content_meta["private"]["proofmode"]["validatedSignatures"]
-                                    del content_meta["private"]["proofmode"]["validatedSignatures"]
-
-                                ##TODO## Should this be moved into parse_proofmode_data?
-                                asset_type = "content"
-                                for asset_filename in content_meta["private"]["proofmode"]:
-                                    ext = os.path.splitext(asset_filename)[1]
-                                    if ext in [".jpg", ".png", ".heic"]:
-                                        asset_type = "image"
-                                    if ext in [".wav", ".m4a", ".mp3"]:
-                                        asset_type = "audio"
-                                    if ext in [".mp4", ".m4v", ".avi", ".mov"]:
-                                        asset_type = "video"
-
-                                content_meta["name"] = f"Authenticated {asset_type}"
-                                content_meta["description"] = f"{asset_type.title()} with ProofMode metadata received via Signal"                            
-                                content_meta["dateCreated"] = content_meta["private"]["proofmode"]['dateCreate']
 
                         out_file = common.add_to_pipeline(
                             localpath + "/" + filename + ".zip",
-                            content_meta,
+                            content_meta_object.get_content(),
                             recorder_meta,
                             stage_path,
                             output_path
