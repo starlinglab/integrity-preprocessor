@@ -345,6 +345,8 @@ def process_ingestor(ingestor):
                                     localpath + "/" + filename + ".zip"
                                 )
 
+                        content_meta_object.description(content_meta_object._content["description"] + " received via Signal")
+
                         out_file = common.add_to_pipeline(
                             localpath + "/" + filename + ".zip",
                             content_meta_object.get_content(),
