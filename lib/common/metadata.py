@@ -56,7 +56,7 @@ class metadata:
     self._content["description"] = description
 
   def validated_signature(self,validated_signature):
-    self._content["validatedSignature"]=validated_signature
+    self._content["validatedSignatures"]=validated_signature
 
   def name(self,name):
     self._content["name"] = name
@@ -279,7 +279,7 @@ class metadata:
     base64_string = metadata_base64_bytes.decode("ascii")      
 
     private["starlingCapture"]["signatures"][0]["b64AuthenticatedMetadata"] = base64_string
-    self._content["validatedSignature"]=validatedSignatures
+    self._content["validatedSignatures"]=validatedSignatures
     self.add_private_key(private)
 
   def get_content(self):
