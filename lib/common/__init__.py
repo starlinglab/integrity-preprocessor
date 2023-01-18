@@ -16,6 +16,12 @@ import integrity_recorder_id
 
 integrity_recorder_id.build_recorder_id_json()
 
+from  .metadata import metadata
+
+__all__ = [
+    "metadata"
+]
+
 metdata_file_timestamp = 0
 
 # Dearmored keys go here
