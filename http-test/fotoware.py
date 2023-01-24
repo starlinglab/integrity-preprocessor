@@ -81,7 +81,6 @@ def date_create_from_exif(filename):
     original_date_timestamp = datetime.datetime.strptime(original_date_time,"%Y:%m:%d %H:%M:%S").timestamp()
     return original_date_timestamp
   return ""
-  
 
 def set_xmp_signatures(filename, signature):
     """
@@ -136,7 +135,7 @@ FOTOWARE_IP_ADDRESS = "52.166.150.145"
 
 async def fotoware_download(source_href,target):
     """
-    Download a file from fotoware. 
+    Download a file from fotoware.
 
     source_href: Source url as refrenced in fotoware
     target: where to save the file
@@ -172,7 +171,7 @@ async def fotoware_download(source_href,target):
 
 async def fotoware_upload(source,filename=""):
     """
-    Upload a file from fotoware. 
+    Upload a file from fotoware.
 
     source: Path to file to upload
     filename: filename to be used by fotoware
@@ -252,11 +251,16 @@ async def fotoware_uploaded(request):
         if doc_id != "":
             print (f"doc_id = {doc_id}, cant be a 66 image!")
             is66="unknown"
-        
+
         s = validate.Sig66(
             tmp_file, key_list=pubKeys
-        )        
-        res = s.validate()
+        )
+        try:
+            res = s.validate()
+        except:
+            print("Validation Broken")
+            return web.json_response(response, status=response.get("status_code"))
+
         print("Validate didnt break")
 
         signatures = s.validated_sigs_json()
@@ -270,51 +274,48 @@ async def fotoware_uploaded(request):
         content_metadata.set_mime_from_file(tmp_file)
         content_metadata.name(f"Authenticated Camera Photo")
         content_metadata.description(f"Photo uploaded through FotoWare and authenticed with Sig66")
-        
+
         if res==True and is66 == "1" :
             sig66_meta={}
-            
+
             current_device = get_device_from_key(s.public_key)
             if current_device=="":
                 current_device="unknown"
 
             sig66_meta["device"]=current_device
             print(f"Device is {current_device}")
-            
+
             uid = uid_from_exif(tmp_file)
             print(f"UID is {uid}")
             sig66_meta["exif_uid"]=uid
-            # set xmp UUID            
+            # set xmp UUID
             set_xmp_document_id(tmp_file,uid)
             print(f"Set XMP to UID")
 
             # generate filename
-            target_filename = f"{device} - {name}{extension}"
+            target_filename = f"{device} - {name}{extension.lower()}"
             sig66_meta["original_filename"]=f"{name}{extension}"
             sig66_meta["target_filename"]=target_filename
 
             print(f"Named {target_filename}")
-            os.rename(tmp_file,f"/tmp/{target_filename}")
-#            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
+#            os.rename(tmp_file,f"/tmp/{target_filename}")
             content_metadata.add_private_key({"sig66": sig66_meta})
-
 
             # Metadata component
         else:
             if res==False:
                 is66 = "unverified"
-            target_filename = f"{is66} - {name}{extension}"
-            os.rename(tmp_file,f"/tmp/{target_filename}")
+            target_filename = f"{is66} - {name}{extension.lower()}"
+#            os.rename(tmp_file,f"/tmp/{target_filename}")
 #            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
-        
+
         # Starling Pipeline
 
         # Extract from exif?
         asset_filename = f"/tmp/{target_filename}"
-        date_create_exif = date_create_from_exif(asset_filename)
-        print(date_create_exif)
+        date_create_exif = date_create_from_exif(tmp_file)
         content_metadata._content["dateCreate"]=date_create_exif
-       
+
         content_metadata.validated_signature(s.validated_sigs_json())
 
 
@@ -327,37 +328,15 @@ async def fotoware_uploaded(request):
         print( f"{integrity_path}/input")
 
         # C2PA Inject
-        await c2pa_create_claim(asset_filename,"/tmp/result.c2pa.json",content_metadata.get_content())
+        await c2pa_create_claim(tmp_file,asset_filename,content_metadata.get_content())
         out_file = common.add_to_pipeline(
             asset_filename, content_metadata.get_content(), recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
         )
+        await fotoware_upload(f"/tmp/{target_filename}",target_filename)
 
         print(f"{asset_filename} Created new asset {out_file}")
         return web.json_response(response, status=response.get("status_code"))
 
-
-        print(f"Wrote to /tmp/{filename}")
-        # READ 66
-        data={
-            "metadata": {
-                "859": { "value": f"{s.auth_msg}" },
-                "855": { "value": f"{s.sig}" }
-            }
-        }
-
-        # Patch Metadata
-        headers = auth_header
-        headers["Content-Type"] = "application/vnd.fotoware.assetupdate+json"
-        headers["accept"] = "application/vnd.fotoware.asset+json"
-        print(original_href)
-        res=requests.patch(original_href,headers=headers,json=data)
-        print(res)
-        print(res.content)
-        print(json.dumps(data, indent=2))
-
-        return web.json_response(response, status=response.get("status_code"))
-
-    
 async def fotoware_ingested(request):
     with error_handling_and_response() as response:
         print("Ingest Fired")
@@ -381,7 +360,7 @@ async def fotoware_deleted(request):
 def _get_index_by_label(c2pa, label):
     return [i for i, o in enumerate(c2pa["assertions"]) if o["label"] == label][0]
 
-async def c2pa_create_claim(source_file,target_file,content_metadata): 
+async def c2pa_create_claim(source_file,target_file,content_metadata):
     print("====================STARTING CLAIM===========================")
     with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
@@ -391,7 +370,7 @@ async def c2pa_create_claim(source_file,target_file,content_metadata):
         m = _get_index_by_label(c2pa_1, "stds.schema-org.CreativeWork")
         c2pa_1["assertions"][m]["data"]["author"][0]["@type"] = content_metadata.get("author").get("@type")
         c2pa_1["assertions"][m]["data"]["author"][0]["identifier"] = content_metadata.get("author").get("identifier")
-        c2pa_1["assertions"][m]["data"]["author"][0]["name"] = content_metadata.get("author").get("name")        
+        c2pa_1["assertions"][m]["data"]["author"][0]["name"] = content_metadata.get("author").get("name")
 
         # Insert c2pa.created actions
         m = _get_index_by_label(c2pa_1, "c2pa.actions")
