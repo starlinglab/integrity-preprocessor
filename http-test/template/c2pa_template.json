@@ -1,0 +1,64 @@
+{
+    "vendor": "starlinglab",
+    "claim_generator": "{{ assetInfoExt.claimGenerator }}",
+    "alg": "es256",
+    "private_key": "/root/dev/integrity-preprocessor/http-test/cert.key",
+    "sign_cert": "/root/dev/integrity-preprocessor/http-test/cert.pem",
+    "ta_url": "http://timestamp.digicert.com",
+    "assertions": [
+        {
+            "label": "stds.schema-org.CreativeWork",
+            "data": {
+                "@context": "https://schema.org",
+                "@type": "CreativeWork",
+                "author": [
+                    {
+                        "@type": "{{ contentMetadata.author.@type }}",
+                        "credential": [],
+                        "identifier": "{{ contentMetadata.author.identifier }}",
+                        "name": "{{ contentMetadata.author.name }}"
+                    }
+                ]
+            }
+        },
+        {
+            "label": "c2pa.actions",
+            "data": {
+                "actions": [
+                    {
+                        "action": "c2pa.created",
+                        "when": "{{ assetInfoExt.captureDate }}"
+                    }
+                ]
+            }
+        },
+        {
+            "label": "org.starlinglab.integrity",
+            "data": {
+                "starling:identifier": "{{ rootOfTrustContentIdentifier }}",
+                "starling:signatures": [
+                    {
+                        "starling:provider": "{{ contentMetadata.validatedSignatures[i].provider }}",
+                        "starling:algorithm": "{{ contentMetadata.validatedSignatures[i].algorithm }}",
+                        "starling:publicKey": "{{ contentMetadata.validatedSignatures[i].signature }}",
+                        "starling:signature": "{{ contentMetadata.validatedSignatures[i].publicKey }}",
+                        "starling:authenticatedMessage": "{{ contentMetadata.validatedSignatures[i].authenticatedMessage }}",
+                        "starling:authenticatedMessageDescription": "{{ contentMetadata.validatedSignatures[i].authenticatedMessageDescription }}"
+                    },
+                    {
+                        "starling:provider": "{{ contentMetadata.validatedSignatures[i].provider }}",
+                        "starling:algorithm": "{{ contentMetadata.validatedSignatures[i].algorithm }}",
+                        "starling:publicKey": "{{ contentMetadata.validatedSignatures[i].signature }}",
+                        "starling:custom": "{{ contentMetadata.validatedSignatures[i].custom }}"
+                    },
+                    {
+                        "starling:provider": "{{ contentMetadata.validatedSignatures[i].provider }}",
+                        "starling:algorithm": "{{ contentMetadata.validatedSignatures[i].algorithm }}",
+                        "starling:custom": "{{ contentMetadata.validatedSignatures[i].custom }}"
+                    }
+                ],
+                "starling:archives": []
+            }
+        }
+    ]
+}

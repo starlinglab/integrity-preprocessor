@@ -11,9 +11,6 @@ import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import validate
-
-
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import integrity_recorder_id
 import common
 
@@ -86,6 +83,24 @@ def date_create_from_exif(filename):
   return ""
   
 
+def set_xmp_signatures(filename, signature):
+    """
+    Create a new starling namespace in XMP and load signature into it
+    """
+    print(signature)
+    const_xmp_starling = "http://starlinglab.org/integrity/signatures"
+    xmpfile = XMPFiles( file_path=filename, open_forupdate=True )
+    xmp = xmpfile.get_xmp()
+    print(xmp.register_namespace(const_xmp_starling,"starling"))
+    xmp.set_property(const_xmp_starling, u'StarlingAlgorithm', signature["algorithm"])
+    xmp.set_property(const_xmp_starling, u'StarlingAuthenticatedMessage', signature["authenticatedMessage"])
+    xmp.set_property(const_xmp_starling, u'StarlingAuthenticatedMessageDescription', signature["authenticatedMessageDescription"])
+    xmp.set_property(const_xmp_starling, u'StarlingProvider', signature["provider"])
+    xmp.set_property(const_xmp_starling, u'StarlingPublicKey', signature["publicKey"])
+    xmp.set_property(const_xmp_starling, u'StarlingSignature', signature["signature"])
+    xmpfile.put_xmp(xmp)
+    xmpfile.close_file()
+
 def set_xmp_document_id(filename, uid):
     """
     Sets a OID DID and IID XMP in a JPG
@@ -116,6 +131,7 @@ def get_xmp_document_id(filename):
 FOTOWARE_URL = os.environ.get("FOTOWARE_API_URL")
 FOTOWARE_CLIENT_ID = os.environ.get("FOTOWARE_API_CLIENT_ID")
 FOTOWARE_SECRET = os.environ.get("FOTOWARE_API_SECRET")
+FOTOWARE_IP_ADDRESS = "52.166.150.145"
 
 
 async def fotoware_download(source_href,target):
@@ -225,7 +241,7 @@ async def fotoware_uploaded(request):
         print(f"Original at {original_rendition}")
 
         tmp_uuid=uuid.uuid1()
-        tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"                
+        tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
 
         await fotoware_download(original_rendition,tmp_file)
 
@@ -241,8 +257,11 @@ async def fotoware_uploaded(request):
             tmp_file, key_list=pubKeys
         )        
         res = s.validate()
-        print("Validate didnt break")        
-        print(f"Validation is {res}")
+        print("Validate didnt break")
+
+        signatures = s.validated_sigs_json()
+        set_xmp_signatures(tmp_file,signatures[0])
+
         extension = os.path.splitext(original_filename)[1]
         name = os.path.splitext(original_filename)[0]
         target_filename = "error.jpg"
