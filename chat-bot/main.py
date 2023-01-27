@@ -14,7 +14,7 @@ import traceback
 # Kludge
 import sys
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import common
 logging = common.logging
 
@@ -37,25 +37,28 @@ def start_metadata_content(ingestor, meta_chat):
     Raises:
         Exception not at this time
     """
+
+    meta_content_object = common.Metadata()
+
     bot_type = ingestor["type"]
+    bot_metadata={
+        "chatbot": bot_type
+    }    
 
-    # Prepare metadata content
-    meta_content = deepcopy(default_content)    
-    meta_content["timestamp"] = datetime.datetime.utcnow().isoformat() + "Z"
-    meta_content["extras"]["botType"] = bot_type
-
+    min_date=""
+    max_date=""
     # Prepares bo specific metadata content
     if bot_type == "slack":
-        meta_content["private"]["slack"] = {}
-        meta_content["private"]["slack"]["botAccount"] = ingestor["botAccount"]
-        meta_content["private"]["slack"]["workspace"] = ingestor["workspace"]
+        bot_metadata["slack"] = {}
+        bot_metadata["slack"]["botAccount"] = ingestor["botAccount"]
+        bot_metadata["slack"]["workspace"] = ingestor["workspace"]
     if bot_type == "signal":
-        meta_content["private"]["signal"] = {}
+        bot_metadata["signal"] = {}
         if "phone" in ingestor:
-            meta_content["private"]["signal"]["phone"] = ingestor["phone"]
+            bot_metadata["signal"]["phone"] = ingestor["phone"]
     if bot_type == "telegram":
-        meta_content["private"]["telegram"] = {}
-        meta_content["private"]["telegram"]["botAccount"] = ingestor["botAccount"]    
+        bot_metadata["telegram"] = {}
+        bot_metadata["telegram"]["botAccount"] = ingestor["botAccount"]    
 
     if "minDate" in meta_chat:
         meta_min_date = meta_chat["minDate"]
@@ -88,8 +91,9 @@ def start_metadata_content(ingestor, meta_chat):
 
         else:
             cosmetic_date = "an unknown date"
+        
 
-        meta_content["name"] = f"{bot_type.title()} archive on {cosmetic_date}"
+        meta_content_object.set_name( f"{bot_type.title()} archive on {cosmetic_date}")
 
         # Prepare channel list
         channel_text = ""
@@ -97,19 +101,21 @@ def start_metadata_content(ingestor, meta_chat):
             channel_list = ",".join(meta_channels)
             channel_text = f" of [ {channel_list} ]"
 
-        meta_content[
-            "description"
-        ] = f"Archive{channel_text} by {bot_type.title()} bot starting on {cosmetic_date}{cosmetic_time}"
+        meta_content_object.set_description(f"Archive{channel_text} by {bot_type.title()} bot starting on {cosmetic_date}{cosmetic_time}")
 
-        meta_content["extras"]["channels"] = meta_channels
-        meta_content["extras"]["dateRange"] = {"from": min_date, "to": max_date}
+        bot_metadata_extras= {
+            "channels": meta_channels,
+            "dateRange" : {"from": min_date, "to": max_date}
+        }
+        meta_content_object.add_private_key({"chatbot":bot_metadata})
+        meta_content_object.add_extras_key({"chatbot": bot_metadata_extras})
 
-        meta_content["dateCreated"] = meta_date_create
+        meta_content_object.createdate_utcfromtimestamp(meta_date_create)
 
-    return meta_content
+    return meta_content_object
 
 
-def zipFolder(zipfile, path):
+def zip_folder(zipfile, path):
     """Creates a zip file from a folder
     Args:
         zipfile: path to zipfile location
@@ -271,7 +277,7 @@ def process_ingestor(ingestor):
     meta_min_date = -1
     meta_max_date = -1
     meta_data = {}
-
+    recorder_meta = {}
     # Prepare injestor specific tasks
     if ingestor_config["type"] == "telegram":
         localpath = ingestor_config["localpath"]
@@ -297,67 +303,53 @@ def process_ingestor(ingestor):
         if not os.path.isdir(error_path):
             os.mkdir(error_path, 0o660)
 
+        content_meta_object = start_metadata_content(ingestor_config, {})
         for item in os.listdir(localpath):
             if os.path.isfile(os.path.join(localpath, item)):
                 try:
-                    content_meta = start_metadata_content(ingestor_config, {})
+
                     filesplit = os.path.splitext(item)
                     filename = filesplit[0]
                     fileext = filesplit[1]
 
                     # set datCreate to file date/time
                     date_file_created = os.path.getmtime(os.path.join(localpath, item))
-                    content_meta["dateCreated"] = datetime.datetime.fromtimestamp(date_file_created).isoformat() + "Z"
-
+                    content_meta_object.createdate_utcfromtimestamp(date_file_created)
+                    
                     # Only look for zip files
                     if fileext == ".zip":
+                        signal_metadata  = {}
                         logging.info(f"FileMode - Parsing {item}")
                         with open(localpath + "/" + filename + ".json", "r") as f:
-                            signal_metadata = json.load(f)
-                            content_meta["private"]["signal"] = signal_metadata
+                            signal_metadata = json.load(f)                            
 
                         # additional specific processing
-                        logging.info(
-                            f"FileMode - Parsing {item} - Matching "
-                            + content_meta["private"]["signal"]["source"]
-                        )
+                        logging.info(f"FileMode - Parsing {item} - Matching {signal_metadata['source']}")
 
                         ##TODO## Assumes signal
-                        if content_meta["private"]["signal"]["source"] in user_config:
-                            user = user_config[content_meta["private"]["signal"]["source"]]
+                        if signal_metadata["source"] in user_config:
+                            user = user_config[signal_metadata["source"]]
                             output_path=user["targetpath"]
                             logging.info(f"FileMode - Parsing {item} - Matched " + user["author"]["name"])
-                            content_meta["author"] = user["author"]
+                            content_meta_object.author(user["author"])
 
-                            ##TODO## org and collection ?
+                        content_meta_object.add_private_element("signal", signal_metadata)
 
                         # Preform any specific file format processing
                         if "processing" in ingestor_config:
-                            logging.info(f"FileMode - parsing {item} - processing Proofmode")
+                            logging.info(f"FileMode - parsing {item} - processing {ingestor_config['processing']}")
+                            content_meta_proofmode={}
+
                             if ingestor_config["processing"] == "proofmode":
-                                content_meta["private"][
-                                    "proofmode"
-                                ] = common.parse_proofmode_data(
+                                content_meta_object.process_proofmode(
                                     localpath + "/" + filename + ".zip"
                                 )
-                                ##TODO## Should this be moved into parse_proofmode_data?
-                                asset_type = "content"
-                                for asset_filename in content_meta["private"]["proofmode"]:
-                                    ext = os.path.splitext(asset_filename)[1]
-                                    if ext in [".jpg", ".png", ".heic"]:
-                                        asset_type = "image"
-                                    if ext in [".wav", ".m4a", ".mp3"]:
-                                        asset_type = "audio"
-                                    if ext in [".mp4", ".m4v", ".avi", ".mov"]:
-                                        asset_type = "video"
 
-                                content_meta["name"] = f"Authenticated {asset_type}"
-                                content_meta["description"] = f"{asset_type.title()} with ProofMode metadata received via Signal"                            
-                                content_meta["dateCreated"] = content_meta["private"]["proofmode"]['dateCreate']
+                        content_meta_object.description(content_meta_object._content["description"] + " received via Signal")
 
                         out_file = common.add_to_pipeline(
                             localpath + "/" + filename + ".zip",
-                            content_meta,
+                            content_meta_object.get_content(),
                             recorder_meta,
                             stage_path,
                             output_path
@@ -443,7 +435,7 @@ def process_ingestor(ingestor):
                                 tmpFolder, ingestor + str(folderDateTime.timestamp()) + ".zip"
                             )
                             with zipfile.ZipFile(temp_filename, "w") as archive:
-                                zipFolder(archive, os.path.join(localpath, item))
+                                zip_folder(archive, os.path.join(localpath, item))
 
                             content_meta = start_metadata_content(
                                 ingestor_config,
