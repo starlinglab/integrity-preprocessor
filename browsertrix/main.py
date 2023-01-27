@@ -13,6 +13,7 @@ from base64 import urlsafe_b64decode
 import dotenv
 from pathlib import Path
 import hashlib
+import traceback
 
 # Kludge
 import sys
@@ -86,6 +87,7 @@ if "collections" in config_data:
                 target_subfolder = "review"
 
         TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], target_subfolder)
+
         if not os.path.exists(TARGET_PATH[aid]):
             os.makedirs(TARGET_PATH[aid])
 
@@ -230,6 +232,28 @@ if os.path.exists(DATA_JSON_PATH):
     with open(DATA_JSON_PATH, "r") as f:
         data = json.load(f)
 
+def register_error(e,wacz_path):
+
+    path,filename=os.path.split(wacz_path)
+    path = os.path.split(path)[0]
+
+    error_path=f"{path}/error-wacz"
+    
+    logging.exception(e)
+    logging.error("Error processing wacz file")
+
+    if not os.path.isdir(error_path):
+        os.mkdir(error_path)
+
+    os.rename(
+        wacz_path,
+        error_path + "/" + filename,
+    )
+    f = open(error_path + "/" + filename + ".log", "a")
+    f.write(str(e))
+    f.write(traceback.format_exc())
+    f.close()
+    Path(wacz_path + ".done").touch()
 
 # Write initial file
 send_to_prometheus(metrics)
@@ -354,10 +378,14 @@ while True:
                 continue
 
             # Meta data collection and generation
-            recorder_meta = common.get_recorder_meta("browsertrix")            
-
+            recorder_meta = common.get_recorder_meta("browsertrix")
             content_metadata = common.Metadata()
-            content_metadata.process_wacz(wacz_path)            
+            try:
+                content_metadata.process_wacz(wacz_path)
+            except Exception as e:
+                register_error(e,wacz_path)
+
+                continue
             content_metadata.createdate(crawl_json["started"])
 
             # Get craw cawlconfig from API

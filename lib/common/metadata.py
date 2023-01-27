@@ -120,11 +120,10 @@ class Metadata:
         extras = {}
 
         self._content["mime"] = "application/wacz"
-
+        crawl_type = ""
         # WACZ metadata extraction
         with ZipFile(wacz_path, "r") as wacz:
             d = json.loads(wacz.read("datapackage-digest.json"))
-            crawl_type = ""
             if "signedData" in d:
                 # auth sign data
                 if "domain" in d["signedData"]:
