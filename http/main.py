@@ -67,6 +67,8 @@ def error_handling_and_response():
         response["status"] = "error"
         if isinstance(err, ClientError):
             response["status_code"] = 400
+            if DEBUG:
+                print(f"Status 400: {err}")
         else:
             response["status_code"] = 500
             # Print error info for unexpected errors
