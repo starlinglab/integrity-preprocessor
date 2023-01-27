@@ -149,7 +149,7 @@ class watch_folder:
             lock_file = self.config["lockFile"]
         _wait_for_file_to_close(source_filename, lock_file)
 
-        content_metadata = common.metadata()
+        content_metadata = common.Metadata()
         content_metadata.set_mime_from_file(source_filename)
         
         meta_method = "Generic"
@@ -202,10 +202,10 @@ class watch_folder:
 
         # Read entries in config file, if it exists, and apply changes
         if "description" in self.config:
-            content_metadata.set_description(self.config["description"])
+            content_metadata.description(self.config["description"])
 
         if "name" in self.config:
-            content_metadata.set_name(self.config["name"])
+            content_metadata.name(self.config["name"])
 
         # Top level config overwrites
         if "author" in self.config:
