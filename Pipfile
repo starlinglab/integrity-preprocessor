@@ -21,6 +21,11 @@ aiohttp-jwt = "*"
 # For Starling Capture
 eth-account = "==0.6.*"
 
+# For security
+# https://github.com/starlinglab/integrity-preprocessor/security/dependabot/7
+setuptools = ">=65.5.1"
+
+
 [dev-packages]
 pytest = "~=7.1.2"
 pylint = "*"
