@@ -23,7 +23,13 @@ import dotenv
 
 dotenv.load_dotenv()
 
-integrity_path="/mnt/store/fotoware-test"
+integrity_path="/mnt/integrity_store/starling/internal/reuters/test-collection"
+if not os.path.exists(f"{integrity_path}/tmp"):
+    os.mkdir(f"{integrity_path}/tmp")
+if not os.path.exists(f"{integrity_path}/input"):
+    os.mkdir(f"{integrity_path}/input")
+if not os.path.exists(f"{integrity_path}/c2pa"):
+    os.mkdir(f"{integrity_path}/c2pa")
 @contextmanager
 def error_handling_and_response():
     """Context manager to wrap the core of a handler implementation with error handlers.
@@ -230,19 +236,20 @@ async def fotoware_uploaded(request):
 
         res = await request.json()
         print(json.dumps(res))
+        original_rendition = ""
 
-        original_href=res["href"]
+        #original_href=res["href"]
         original_filename = res["data"]["filename"]
         for rendition in res["data"]["renditions"]:
             if rendition["original"] == True:
                 original_rendition=rendition["href"]
-        filename=res["data"]["filename"]
+
         print(f"Original at {original_rendition}")
 
         tmp_uuid=uuid.uuid1()
         tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
 
-        await fotoware_download(original_rendition,tmp_file)
+        await fotoware_download(original_rendition,tmp_file)        
 
         doc_id = get_xmp_document_id(tmp_file)
 
@@ -251,33 +258,36 @@ async def fotoware_uploaded(request):
         if doc_id != "":
             print (f"doc_id = {doc_id}, cant be a 66 image!")
             is66="unknown"
+        s = None
+        if is66:
+            s = validate.Sig66(
+                tmp_file, key_list=pubKeys
+            )
+            try:
+                res = s.validate()
+            except:
+                print("Validation Broken")
+                return web.json_response(response, status=response.get("status_code"))
+            print("Validate didnt break")
 
-        s = validate.Sig66(
-            tmp_file, key_list=pubKeys
-        )
-        try:
-            res = s.validate()
-        except:
-            print("Validation Broken")
-            return web.json_response(response, status=response.get("status_code"))
-
-        print("Validate didnt break")
-
-        signatures = s.validated_sigs_json()
-        set_xmp_signatures(tmp_file,signatures[0])
+        
 
         extension = os.path.splitext(original_filename)[1]
-        name = os.path.splitext(original_filename)[0]
-        target_filename = "error.jpg"
+        name = os.path.splitext(original_filename)[0]        
 
-        content_metadata = common.metadata()
+        content_metadata = common.Metadata()
         content_metadata.set_mime_from_file(tmp_file)
         content_metadata.name(f"Authenticated Camera Photo")
         content_metadata.description(f"Photo uploaded through FotoWare and authenticed with Sig66")
 
+        target_local_file = ""
+        original_file = ""
+        target_filename = "error.jpg"
+
         if res==True and is66 == "1" :
             sig66_meta={}
 
+            # Deal with sig66 metadata
             current_device = get_device_from_key(s.public_key)
             if current_device=="":
                 current_device="unknown"
@@ -285,56 +295,82 @@ async def fotoware_uploaded(request):
             sig66_meta["device"]=current_device
             print(f"Device is {current_device}")
 
+            # Deal with file nameing
             uid = uid_from_exif(tmp_file)
+
+            # generate filename
+            target_filename = f"{current_device} - {name}{extension.lower()}"
+            target_local_file = f"{uid.upper()}{extension.lower()}"
+            original_file = f"{integrity_path}/tmp/{target_filename}"
+
+            sig66_meta["original_filename"]=f"{name}{extension}"
+            sig66_meta["target_filename"]=target_filename
+
+            # Make a copy of the original for the pipeline
+            shutil.copyfile(tmp_file, original_file)
+           
+            # Set the UUID to XMP
             print(f"UID is {uid}")
             sig66_meta["exif_uid"]=uid
             # set xmp UUID
             set_xmp_document_id(tmp_file,uid)
             print(f"Set XMP to UID")
 
-            # generate filename
-            target_filename = f"{device} - {name}{extension.lower()}"
-            sig66_meta["original_filename"]=f"{name}{extension}"
-            sig66_meta["target_filename"]=target_filename
-
             print(f"Named {target_filename}")
 #            os.rename(tmp_file,f"/tmp/{target_filename}")
             content_metadata.add_private_key({"sig66": sig66_meta})
+            content_metadata.validated_signature(s.validated_sigs_json())
 
             # Metadata component
         else:
             if res==False:
-                is66 = "unverified"
-            target_filename = f"{is66} - {name}{extension.lower()}"
-#            os.rename(tmp_file,f"/tmp/{target_filename}")
-#            await fotoware_upload(f"/tmp/{target_filename}",target_filename)
+                current_device = "unverified"
+                target_filename = f"{current_device} - {name}{extension.lower()}"
+                uid = uid_from_exif(tmp_file)
+                target_local_file = f"{uid.upper()}{extension.lower()}"
+                original_file = f"{integrity_path}/tmp/{target_filename}"                
+                set_xmp_document_id(tmp_file,uid)
 
-        # Starling Pipeline
 
         # Extract from exif?
-        asset_filename = f"/tmp/{target_filename}"
-        date_create_exif = date_create_from_exif(tmp_file)
-        content_metadata._content["dateCreate"]=date_create_exif
-
-        content_metadata.validated_signature(s.validated_sigs_json())
+        date_create_exif = date_create_from_exif(original_file)
+        content_metadata.createdate_utcfromtimestamp(date_create_exif)
 
 
         recorder_meta = common.get_recorder_meta("http")
 
-        print(asset_filename)
+        print(original_file)
         print( content_metadata)
         print( recorder_meta)
         print( f"{integrity_path}/tmp")
         print( f"{integrity_path}/input")
+        print( f"{integrity_path}/c2pa")
 
-        # C2PA Inject
-        await c2pa_create_claim(tmp_file,asset_filename,content_metadata.get_content())
         out_file = common.add_to_pipeline(
-            asset_filename, content_metadata.get_content(), recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
+            original_file, content_metadata.get_content(), recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
         )
-        await fotoware_upload(f"/tmp/{target_filename}",target_filename)
 
-        print(f"{asset_filename} Created new asset {out_file}")
+
+        # Get blockchain commits
+        receipt_path,filename =  os.path.split(out_file)
+        receipt_path = receipt_path.replace("/internal/","/shared/")
+        receipt_path = os.path.split(receipt_path)[0] + "/action-archive"
+        filename = os.path.splitext(filename)[0] + ".json"
+        receipt_path = f"{receipt_path}/{filename}"
+        print(f"=====Waiting for {receipt_path}===========")
+        while not os.path.exists(receipt_path):
+            print("....")
+            await asyncio.sleep(10)        
+        f=open(receipt_path,"r")
+        receipt= json.load(f)
+   
+        await c2pa_create_claim(tmp_file,f"{integrity_path}/c2pa/{target_local_file}",content_metadata.get_content(),receipt)
+
+        await fotoware_upload(f"{integrity_path}/c2pa/{target_local_file}",target_filename)
+        
+
+        print(f"{name} Created new asset {out_file}")
+
         return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_ingested(request):
@@ -360,7 +396,7 @@ async def fotoware_deleted(request):
 def _get_index_by_label(c2pa, label):
     return [i for i, o in enumerate(c2pa["assertions"]) if o["label"] == label][0]
 
-async def c2pa_create_claim(source_file,target_file,content_metadata):
+async def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json):
     print("====================STARTING CLAIM===========================")
     with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
@@ -375,8 +411,8 @@ async def c2pa_create_claim(source_file,target_file,content_metadata):
         # Insert c2pa.created actions
         m = _get_index_by_label(c2pa_1, "c2pa.actions")
         n = [i for i, o in enumerate(c2pa_1["assertions"][m]["data"]["actions"]) if o["action"] == "c2pa.created"][0]
-        create_date = datetime.datetime.fromtimestamp(content_metadata.get("dateCreate"))
-        c2pa_1["assertions"][m]["data"]["actions"][n]["when"] = create_date.isoformat()
+        create_date = content_metadata.get("dateCreated")
+        c2pa_1["assertions"][m]["data"]["actions"][n]["when"] = create_date
 
         # Insert identifier
         m = _get_index_by_label(c2pa_1, "org.starlinglab.integrity")
@@ -387,8 +423,6 @@ async def c2pa_create_claim(source_file,target_file,content_metadata):
 
         # Insert signatures
         c2pa_1["assertions"][m]["data"]["starling:signatures"] = []
-        print(json.dumps(content_metadata,indent=2))
-
         for sig in content_metadata.get("validatedSignature", []):
             x = {}
             if sig.get("provider"): x["starling:provider"] = sig.get("provider")
@@ -399,6 +433,9 @@ async def c2pa_create_claim(source_file,target_file,content_metadata):
             if sig.get("authenticatedMessageDescription"): x["starling:authenticatedMessageDescription"] = sig.get("authenticatedMessageDescription")
             if sig.get("custom"): x["starling:custom"] = sig.get("custom")
             c2pa_1["assertions"][m]["data"]["starling:signatures"].append(x)
+
+        # Insert Blockchain Registartion
+        c2pa_1["assertions"][m]["data"]["starling:archives"].append(receipt_json)
 
         with open(f"{source_file}.json", "w") as man:
             json.dump(c2pa_1, man)
