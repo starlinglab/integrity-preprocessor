@@ -201,12 +201,16 @@ async def data_from_multipart(request):
             geolocation["timestamp"] = get_value_from_meta(
                 meta, "Current GPS Timestamp"
             ) or get_value_from_meta(meta, "Last Known GPS Timestamp")
-            # Add reverse-geocode keys
-            geolocation.update(
-                geocode.reverse_geocode(
-                    geolocation["latitude"], geolocation["longitude"]
+            if geolocation["latitude"] is None or geolocation["longitude"] is None:
+                # No data, remove all the None (null) values
+                geolocation = {}
+            else:
+                # Add reverse-geocode keys
+                geolocation.update(
+                    geocode.reverse_geocode(
+                        geolocation["latitude"], geolocation["longitude"]
+                    )
                 )
-            )
 
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
