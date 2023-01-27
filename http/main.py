@@ -241,6 +241,11 @@ async def create(request):
         if not sc.validate():
             raise ClientError("Hashes or signatures did not validate")
 
+        # Add final part to meta_content
+        meta_content["contentMetadata"][
+            "validatedSignatures"
+        ] = sc.validated_sigs_json()
+
         asset_hash = sha256sum(asset_path)
         tmp_zip_path = os.path.join(LOCAL_PATH, asset_hash) + ".zip"
 
