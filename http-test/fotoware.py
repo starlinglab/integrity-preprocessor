@@ -1,4 +1,4 @@
-
+import threading
 import subprocess
 import datetime
 import os
@@ -219,152 +219,147 @@ async def fotoware_oauth(clientid,client_secret):
     #accessTokenExpires = result["token_type"]
     return accessToken
 
-fotoware_lock={}
+
+async def fotoware_uploaded_thread(request):
+    res = await request.json()
+    
+
+    original_rendition = ""
+    original_filename = res["data"]["filename"]
+    for rendition in res["data"]["renditions"]:
+        if rendition["original"] == True:
+            original_rendition=rendition["href"]
+    logging.info(f"fotoware_uploaded_thread - Fotoware URL at {original_rendition}") 
+
+    extension = os.path.splitext(original_filename)[1]
+    name = os.path.splitext(original_filename)[0]
+
+    tmp_uuid=uuid.uuid1()
+    tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
+    tmp_file_orig = f"{tmp_file}.orig.jpg"
+    
+    await fotoware_download(original_rendition,tmp_file)
+  
+    shutil.copyfile(tmp_file,tmp_file_orig)
+    doc_id = get_xmp_document_id(tmp_file)
+
+    # Check Sig66
+    is66="1"
+    if doc_id != "":
+        logging.info(f"fotoware_uploaded_thread - doc_id = {doc_id}, cant be a 66 image!")
+        is66="unknown"
+    s = None
+    if is66=="1":            
+        s = validate.Sig66(
+            tmp_file, key_list=pubKeys
+        )            
+        try:
+            res = s.validate()
+            logging.info(f"fotoware_uploaded_thread - Validated Sig66")
+        except:
+            logging.info(f"fotoware_uploaded_thread - Validation Broken Sig66")
+            # Perform Error Here         
+
+    # Start Metadata object
+    content_metadata = common.Metadata()
+    content_metadata.set_mime_from_file(tmp_file)
+    content_metadata.name(f"Authenticated Camera Photo")
+    content_metadata.description(f"Photo uploaded through FotoWare and authenticed with Sig66")
+
+    target_local_file = "" #C2PA Target
+    target_filename = "error.jpg"
+
+    # Save metadata info
+    if res==True and is66 == "1" :
+        sig66_meta={}
+        
+        # Deal with sig66 metadata
+        current_device = get_device_from_key(s.public_key)
+        if current_device=="":
+            current_device="unknown"
+        logging.info(f"fotoware_uploaded_thread - Device used {current_device}")
+        sig66_meta["device"]=current_device
+
+        # Deal with file nameing
+        uid = uid_from_exif(tmp_file)
+
+        # generate filename
+        target_filename = f"{current_device} - {name}{extension.lower()}"
+        target_local_file = f"{uid.upper()}{extension.lower()}"
+
+        sig66_meta["original_filename"]=f"{name}{extension}"
+        sig66_meta["target_filename"]=target_filename
+
+        
+        # Set the UUID to XMP
+        sig66_meta["exif_uid"]=uid
+        # set xmp UUID
+        set_xmp_document_id(tmp_file,uid)
+        logging.info(f"fotoware_uploaded_thread - XMP OID is set to UID of {uid}")
+
+        content_metadata.add_private_key({"sig66": sig66_meta})
+        signatures = s.validated_sigs_json()
+        content_metadata.validated_signature(s.validated_sigs_json())
+        logging.info(f"fotoware_uploaded_thread - XMP Signatures Saved")
+        set_xmp_signatures(tmp_file,signatures[0])
+
+        # Metadata component
+    else:
+        if res==False:
+            current_device = "unverified"
+            target_filename = f"{current_device} - {name}{extension.lower()}"
+            uid = uid_from_exif(tmp_file)
+            target_local_file = f"{uid.upper()}{extension.lower()}"         
+            set_xmp_document_id(tmp_file,uid)
+            logging.info(f"fotoware_uploaded_thread - Device is not verified")
+
+
+    # Extract from exif?
+    date_create_exif = date_create_from_exif(tmp_file)
+    logging.info(f"fotoware_uploaded_thread - EXIF Date Captures is {date_create_exif}")
+    content_metadata.createdate_utcfromtimestamp(date_create_exif)
+    logging.info(f"fotoware_uploaded_thread - MetaData Captured Date is now {content_metadata._content['dateCreated']}")
+
+    recorder_meta = common.get_recorder_meta("http")
+
+    logging.info(f"fotoware_uploaded_thread - Sending to Pipeline")
+    out_file = common.add_to_pipeline(
+        tmp_file_orig, content_metadata.get_content(), recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
+    )
+    logging.info(f"fotoware_uploaded_thread - Pipeline file at {out_file}")
+
+    # Get blockchain commits
+    receipt_path,filename =  os.path.split(out_file)
+    receipt_path = receipt_path.replace("/internal/","/shared/")
+    receipt_path = os.path.split(receipt_path)[0] + "/action-archive"
+    filename = os.path.splitext(filename)[0] + ".json"
+    receipt_path = f"{receipt_path}/{filename}"
+    logging.info(f"fotoware_uploaded_thread - Waiting for pipeline to finish")
+    while not os.path.exists(receipt_path):
+        print(".",end = '')
+        await asyncio.sleep(3)
+    print(".")
+
+    logging.info(f"fotoware_uploaded_thread - Reading receipt file from {receipt_path}")
+    f=open(receipt_path,"r")
+    receipt= json.load(f)
+
+    logging.info(f"fotoware_uploaded_thread - Creating inital C2PA Claim")
+    await c2pa_create_claim(tmp_file,f"{integrity_path}/c2pa/{target_local_file}",content_metadata.get_content(),receipt,target_filename)
+
+    logging.info(f"fotoware_uploaded_thread - Uploading file to Fotoware archive")
+    await fotoware_upload(f"{integrity_path}/c2pa/{target_local_file}",target_filename)        
+   
+    logging.info(f"fotoware_uploaded_thread - Success")
+
 async def fotoware_uploaded(request):
     '''
     Process ftp uploads from fotoware, check signatures66, set OID and upload back into fotoware
     '''
     with error_handling_and_response() as response:
-        logging.info(f"fotoware_uploaded - Start") 
-
-        res = await request.json()
-
-        original_rendition = ""
-        original_filename = res["data"]["filename"]
-        for rendition in res["data"]["renditions"]:
-            if rendition["original"] == True:
-                original_rendition=rendition["href"]
-        logging.info(f"fotoware_uploaded - Fotoware URL at {original_rendition}") 
-
-        extension = os.path.splitext(original_filename)[1]
-        name = os.path.splitext(original_filename)[0]
-
-        # Code to prevent webhook timing out and fireing twice
-        if name in fotoware_lock:
-            logging.info(f"fotoware_uploaded - {name} filename Locked from previous post. Skipping") 
-            return web.json_response(response, status=response.get("status_code"))
-        fotoware_lock[name]=1
-
-
-
-        tmp_uuid=uuid.uuid1()
-        tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
-        tmp_file_orig = f"{tmp_file}.orig.jpg"
-       
-        await fotoware_download(original_rendition,tmp_file)
-
-        shutil.copyfile(tmp_file,tmp_file_orig)
-        doc_id = get_xmp_document_id(tmp_file)
-
-        # Check Sig66
-        is66="1"
-        if doc_id != "":
-            logging.info(f"fotoware_uploaded - doc_id = {doc_id}, cant be a 66 image!")
-            is66="unknown"
-        s = None
-        if is66=="1":            
-            s = validate.Sig66(
-                tmp_file, key_list=pubKeys
-            )            
-            try:
-                res = s.validate()
-                logging.info(f"fotoware_uploaded - Validated Sig66")
-            except:
-                logging.info(f"fotoware_uploaded - Validation Broken Sig66")
-                return web.json_response(response, status=response.get("status_code"))
-
-        # Start Metadata object
-        content_metadata = common.Metadata()
-        content_metadata.set_mime_from_file(tmp_file)
-        content_metadata.name(f"Authenticated Camera Photo")
-        content_metadata.description(f"Photo uploaded through FotoWare and authenticed with Sig66")
-
-        target_local_file = "" #C2PA Target
-        target_filename = "error.jpg"
-
-        # Save metadata info
-        if res==True and is66 == "1" :
-            sig66_meta={}
-            
-            # Deal with sig66 metadata
-            current_device = get_device_from_key(s.public_key)
-            if current_device=="":
-                current_device="unknown"
-            logging.info(f"fotoware_uploaded - Device used {current_device}")
-            sig66_meta["device"]=current_device
-
-            # Deal with file nameing
-            uid = uid_from_exif(tmp_file)
-
-            # generate filename
-            target_filename = f"{current_device} - {name}{extension.lower()}"
-            target_local_file = f"{uid.upper()}{extension.lower()}"
-
-            sig66_meta["original_filename"]=f"{name}{extension}"
-            sig66_meta["target_filename"]=target_filename
-
-          
-            # Set the UUID to XMP
-            sig66_meta["exif_uid"]=uid
-            # set xmp UUID
-            set_xmp_document_id(tmp_file,uid)
-            logging.info(f"fotoware_uploaded - XMP OID is set to UID of {uid}")
-
-            content_metadata.add_private_key({"sig66": sig66_meta})
-            signatures = s.validated_sigs_json()
-            content_metadata.validated_signature(s.validated_sigs_json())
-            logging.info(f"fotoware_uploaded - XMP Signatures Saved")
-            set_xmp_signatures(tmp_file,signatures[0])
-
-            # Metadata component
-        else:
-            if res==False:
-                current_device = "unverified"
-                target_filename = f"{current_device} - {name}{extension.lower()}"
-                uid = uid_from_exif(tmp_file)
-                target_local_file = f"{uid.upper()}{extension.lower()}"         
-                set_xmp_document_id(tmp_file,uid)
-                logging.info(f"fotoware_uploaded - Device is not verified")
-
-
-        # Extract from exif?
-        date_create_exif = date_create_from_exif(tmp_file)
-        logging.info(f"fotoware_uploaded - EXIF Date Captures is {date_create_exif}")
-        content_metadata.createdate_utcfromtimestamp(date_create_exif)
-        logging.info(f"fotoware_uploaded - MetaData Captured Date is now {content_metadata._content['dateCreated']}")
-
-        recorder_meta = common.get_recorder_meta("http")
-
-        logging.info(f"fotoware_uploaded - Sending to Pipeline")
-        out_file = common.add_to_pipeline(
-            tmp_file_orig, content_metadata.get_content(), recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
-        )
-        logging.info(f"fotoware_uploaded - Pipeline file at {out_file}")
-
-        # Get blockchain commits
-        receipt_path,filename =  os.path.split(out_file)
-        receipt_path = receipt_path.replace("/internal/","/shared/")
-        receipt_path = os.path.split(receipt_path)[0] + "/action-archive"
-        filename = os.path.splitext(filename)[0] + ".json"
-        receipt_path = f"{receipt_path}/{filename}"
-        logging.info(f"fotoware_uploaded - Waiting for pipeline to finish")
-        while not os.path.exists(receipt_path):
-            print(".",end = '')
-            await asyncio.sleep(3)
-        print(".")
-
-        logging.info(f"fotoware_uploaded - Reading receipt file from {receipt_path}")
-        f=open(receipt_path,"r")
-        receipt= json.load(f)
-
-        logging.info(f"fotoware_uploaded - Creating inital C2PA Claim")
-        await c2pa_create_claim(tmp_file,f"{integrity_path}/c2pa/{target_local_file}",content_metadata.get_content(),receipt,target_filename)
-
-        logging.info(f"fotoware_uploaded - Uploading file to Fotoware archive")
-        await fotoware_upload(f"{integrity_path}/c2pa/{target_local_file}",target_filename)        
-
-        del fotoware_lock[name]        
-        logging.info(f"fotoware_uploaded - Success")
+        logging.info(f"fotoware_uploaded - Start")         
+        logging.info(f"fotoware_uploaded - Spawning Thread and returing 200") 
+        threading.Thread(target=fotoware_uploaded_thread,args=(request))
         return web.json_response(response, status=response.get("status_code"))
 
 
