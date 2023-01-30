@@ -231,6 +231,7 @@ async def fotoware_oauth(clientid,client_secret):
     #accessTokenExpires = result["token_type"]
     return accessToken
 
+fotoware_lock={}
 async def fotoware_uploaded(request):
     '''
     Process ftp uploads from fotoware, check signatures66, set OID and upload back into fotoware
@@ -251,9 +252,21 @@ async def fotoware_uploaded(request):
                 original_rendition=rendition["href"]
         print(f"Original at {original_rendition}")
 
+        extension = os.path.splitext(original_filename)[1]
+        name = os.path.splitext(original_filename)[0]
+
+        # Code to prevent webhook timing out and fireing twice
+        if name in fotoware_lock:
+            print(f"{name} Already processing.. returning complete to webhook so it doesnt process twice")
+            return web.json_response(response, status=response.get("status_code"))
+        fotoware_lock[name]=1
+
+
+
         tmp_uuid=uuid.uuid1()
         tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
         tmp_file_orig = f"{tmp_file}.orig.jpg"
+        
 
         await fotoware_download(original_rendition,tmp_file)
 
@@ -280,8 +293,6 @@ async def fotoware_uploaded(request):
             print(s.validated_sigs_json())
        
 
-        extension = os.path.splitext(original_filename)[1]
-        name = os.path.splitext(original_filename)[0]
 
         # Start Metadata object
         content_metadata = common.Metadata()
@@ -374,6 +385,8 @@ async def fotoware_uploaded(request):
         await fotoware_upload(f"{integrity_path}/c2pa/{target_local_file}",target_filename)        
 
         print(f"----------------{name} Created new asset {out_file}-----------------")
+
+        del fotoware_lock[name]        
 
         return web.json_response(response, status=response.get("status_code"))
 
