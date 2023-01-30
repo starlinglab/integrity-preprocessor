@@ -503,11 +503,11 @@ async def c2pa_create_claim(source_file,target_file,content_metadata,receipt_jso
         p_c2patool = "/root/.cargo/bin/c2patool"
 
         
-        tmp_file="/tmp/" + filename        
-        p = subprocess.run([f"{p_c2patool}", f"{source_file}", "--manifest", f"{source_file}.json", "--output" , f"{tmp_file}", "--force"], capture_output=True)        
-        shutil.copyfile(tmp_file,target_file)
-
-        print([f"{p_c2patool}", f"{source_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"])
+        tmp_file="/tmp/" + filename  
+        shutil.copyfile(source_file,tmp_file)
+        p = subprocess.run([f"{p_c2patool}", f"{tmp_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"], capture_output=True)        
+        
+        #print([f"{p_c2patool}", f"{source_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"])
         print(f"C2PA FILE AT {target_file}")
 
 
