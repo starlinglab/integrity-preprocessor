@@ -55,7 +55,7 @@
                         "starling:provider": "{{ contentMetadata.validatedSignatures[i].provider }}",
                         "starling:algorithm": "{{ contentMetadata.validatedSignatures[i].algorithm }}",
                         "starling:custom": "{{ contentMetadata.validatedSignatures[i].custom }}"
-                    }
+                    }                
                 ],
                 "starling:archives": []
             }
