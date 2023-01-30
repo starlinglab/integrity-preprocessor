@@ -23,6 +23,10 @@ import exifread
 from libxmp import XMPFiles, consts # python-xmp-toolkit apt - exempi
 import dotenv
 
+logging = common.logging
+logging.info("Started folder preprocessor")
+
+
 dotenv.load_dotenv()
 
 integrity_path="/mnt/integrity_store/starling/internal/reuters/test-collection"
@@ -161,13 +165,13 @@ async def fotoware_download(source_href,target):
     r=requests.post(f"{FOTOWARE_URL}/fotoweb/services/renditions",headers=auth_header,json=data)
     result = r.json()
     href = result["href"]
-    print(f"HREF for download is at {href}")
+    logging.info(f"fotoware_download - Fotoware URL is {href}")
 
     # Waiting for file to be ready and downloaded
     headers = auth_header
     r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
     while r.status_code == 202:
-        print("202... Waiting for download to be available")
+        logging.info(f"fotoware_download - Waiting for download request to be available (202)")
         await asyncio.sleep(3)
         r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
 
@@ -182,10 +186,9 @@ async def fotoware_upload(source,filename=""):
     source: Path to file to upload
     filename: filename to be used by fotoware
     """
-    print(f"Uploafing {filename}")
+    logging.info(f"fotoware_upload - Uploading {filename} via API")
 
-    shutil.copyfile(source,f"/tmp/{filename}")
-    
+    shutil.copyfile(source,f"/tmp/{filename}")    
     new_source=f"/tmp/{filename}"
 
     if filename == "":
@@ -197,23 +200,8 @@ async def fotoware_upload(source,filename=""):
         "Authorization": f"Bearer {token}",
     }
 
-    r=requests.post(f"{FOTOWARE_URL}/fotoweb/archives/5000-Starling/",headers=auth_header,files=files)
-    result = r.json()
-#    href = result["href"]
+    r=requests.post(f"{FOTOWARE_URL}/fotoweb/archives/5000-Starling/",headers=auth_header,files=files)  
 
-#    headers = auth_header
-#    headers["accept"] = "application/vnd.fotoware.upload-status+json"
-#    print (f"Downloading ... {FOTOWARE_URL}")
-#    r=requests.get(f"{FOTOWARE_URL}" + href,headers=auth_header)
-#    status = "pending"
-#    while r.status_code == 202 or status != "done":
-#        print("Waiting for upload...")
-#        await asyncio.sleep(5)
-#        r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
-#        res=r.json()
-#        status = res["job"]["status"]
-#        if status=="failed":
-#            status = "done"
 
 async def fotoware_oauth(clientid,client_secret):
     '''
@@ -224,7 +212,7 @@ async def fotoware_oauth(clientid,client_secret):
         "client_id":f"{clientid}",
         "client_secret":f"{client_secret}"
     }
-#    print(auth)
+    logging.info(f"fotoware_oauth - Generating oauth")    
     response=requests.post(f"{FOTOWARE_URL}/fotoweb/oauth2/token", data=auth)
     result = response.json()
     accessToken = result["access_token"]
@@ -237,27 +225,23 @@ async def fotoware_uploaded(request):
     Process ftp uploads from fotoware, check signatures66, set OID and upload back into fotoware
     '''
     with error_handling_and_response() as response:
-        print("====================================Uploaded Fired===================================")
-#        print(request)
-#        print(response)
+        logging.info(f"fotoware_uploaded - Start") 
 
         res = await request.json()
-#        print(json.dumps(res))
 
-        # Download the file
         original_rendition = ""
         original_filename = res["data"]["filename"]
         for rendition in res["data"]["renditions"]:
             if rendition["original"] == True:
                 original_rendition=rendition["href"]
-        print(f"Original at {original_rendition}")
+        logging.info(f"fotoware_uploaded - Fotoware URL at {original_rendition}") 
 
         extension = os.path.splitext(original_filename)[1]
         name = os.path.splitext(original_filename)[0]
 
         # Code to prevent webhook timing out and fireing twice
         if name in fotoware_lock:
-            print(f"{name} Already processing.. returning complete to webhook so it doesnt process twice")
+            logging.info(f"fotoware_uploaded - {name} filename Locked from previous post. Skipping") 
             return web.json_response(response, status=response.get("status_code"))
         fotoware_lock[name]=1
 
@@ -266,8 +250,7 @@ async def fotoware_uploaded(request):
         tmp_uuid=uuid.uuid1()
         tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
         tmp_file_orig = f"{tmp_file}.orig.jpg"
-        
-
+       
         await fotoware_download(original_rendition,tmp_file)
 
         shutil.copyfile(tmp_file,tmp_file_orig)
@@ -276,23 +259,19 @@ async def fotoware_uploaded(request):
         # Check Sig66
         is66="1"
         if doc_id != "":
-            print (f"doc_id = {doc_id}, cant be a 66 image!")
+            logging.info(f"fotoware_uploaded - doc_id = {doc_id}, cant be a 66 image!")
             is66="unknown"
         s = None
-        if is66=="1":
-            print("Validating Sig66")
+        if is66=="1":            
             s = validate.Sig66(
                 tmp_file, key_list=pubKeys
-            )
+            )            
             try:
                 res = s.validate()
+                logging.info(f"fotoware_uploaded - Validated Sig66")
             except:
-                print("Validation Broken")
+                logging.info(f"fotoware_uploaded - Validation Broken Sig66")
                 return web.json_response(response, status=response.get("status_code"))
-            print("Validate complete")
-            print(s.validated_sigs_json())
-       
-
 
         # Start Metadata object
         content_metadata = common.Metadata()
@@ -311,9 +290,8 @@ async def fotoware_uploaded(request):
             current_device = get_device_from_key(s.public_key)
             if current_device=="":
                 current_device="unknown"
-
+            logging.info(f"fotoware_uploaded - Device used {current_device}")
             sig66_meta["device"]=current_device
-            print(f"Device is {current_device}")
 
             # Deal with file nameing
             uid = uid_from_exif(tmp_file)
@@ -327,16 +305,15 @@ async def fotoware_uploaded(request):
 
           
             # Set the UUID to XMP
-            print(f"UID is {uid}")
             sig66_meta["exif_uid"]=uid
             # set xmp UUID
             set_xmp_document_id(tmp_file,uid)
-            print(f"Set XMP to UID")
+            logging.info(f"fotoware_uploaded - XMP OID is set to UID of {uid}")
 
             content_metadata.add_private_key({"sig66": sig66_meta})
             signatures = s.validated_sigs_json()
-            print(signatures)
             content_metadata.validated_signature(s.validated_sigs_json())
+            logging.info(f"fotoware_uploaded - XMP Signatures Saved")
             set_xmp_signatures(tmp_file,signatures[0])
 
             # Metadata component
@@ -347,24 +324,22 @@ async def fotoware_uploaded(request):
                 uid = uid_from_exif(tmp_file)
                 target_local_file = f"{uid.upper()}{extension.lower()}"         
                 set_xmp_document_id(tmp_file,uid)
+                logging.info(f"fotoware_uploaded - Device is not verified")
 
 
         # Extract from exif?
         date_create_exif = date_create_from_exif(tmp_file)
+        logging.info(f"fotoware_uploaded - EXIF Date Captures is {date_create_exif}")
         content_metadata.createdate_utcfromtimestamp(date_create_exif)
+        logging.info(f"fotoware_uploaded - MetaData Captured Date is now {content_metadata._content['dateCreated']}")
 
         recorder_meta = common.get_recorder_meta("http")
 
-#        print(original_file)
-#        print( content_metadata)
-#        print( recorder_meta)
-#        print( f"{integrity_path}/tmp")
-#        print( f"{integrity_path}/input")
-#        print( f"{integrity_path}/c2pa")
-
+        logging.info(f"fotoware_uploaded - Sending to Pipeline")
         out_file = common.add_to_pipeline(
             tmp_file_orig, content_metadata.get_content(), recorder_meta, f"{integrity_path}/tmp", f"{integrity_path}/input"
         )
+        logging.info(f"fotoware_uploaded - Pipeline file at {out_file}")
 
         # Get blockchain commits
         receipt_path,filename =  os.path.split(out_file)
@@ -372,36 +347,37 @@ async def fotoware_uploaded(request):
         receipt_path = os.path.split(receipt_path)[0] + "/action-archive"
         filename = os.path.splitext(filename)[0] + ".json"
         receipt_path = f"{receipt_path}/{filename}"
-        print(f"=====Waiting for {receipt_path}===========")
+        logging.info(f"fotoware_uploaded - Waiting for pipeline to finish")
         while not os.path.exists(receipt_path):
-            print("....")
+            print(".",end = '')
             await asyncio.sleep(3)
+        print(".")
+
+        logging.info(f"fotoware_uploaded - Reading receipt file from {receipt_path}")
         f=open(receipt_path,"r")
         receipt= json.load(f)
 
+        logging.info(f"fotoware_uploaded - Creating inital C2PA Claim")
         await c2pa_create_claim(tmp_file,f"{integrity_path}/c2pa/{target_local_file}",content_metadata.get_content(),receipt,target_filename)
 
-        print(f"Uploading ")
+        logging.info(f"fotoware_uploaded - Uploading file to Fotoware archive")
         await fotoware_upload(f"{integrity_path}/c2pa/{target_local_file}",target_filename)        
 
-        print(f"----------------{name} Created new asset {out_file}-----------------")
-
         del fotoware_lock[name]        
-
+        logging.info(f"fotoware_uploaded - Success")
         return web.json_response(response, status=response.get("status_code"))
 
 
 async def check_photo_for_c2pa(request):
 
     res = await request.json()
-    print(res)
     original_rendition = ""
 
     asset =res["data"]
 
     if "asset" in res["data"]:
         asset=res["data"]["asset"]
-        print("Selecting ASSET Tag")
+        logging.info(f"check_photo_for_c2pa - Using asset key")
 
     original_filename = asset["filename"]
 
@@ -409,42 +385,48 @@ async def check_photo_for_c2pa(request):
         if rendition["original"] == True:
             original_rendition=rendition["href"]
 
-    print(f"Original at {original_rendition}")
-
+    logging.info(f"check_photo_for_c2pa - Fotoware URL at {original_rendition}")
     tmp_uuid=uuid.uuid1()
     tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
 
+    logging.info(f"check_photo_for_c2pa - Downloading from Fotoware")
     await fotoware_download(original_rendition,tmp_file)
+    logging.info(f"check_photo_for_c2pa - Checking C2PA Integrity")
     if c2pa_validate(tmp_file) == True:
+        logging.info(f"check_photo_for_c2pa - C2PA intact, skipping")
         print("C2PA Intact, Skipping file")
+        return
             
     # Extract OID
-    OID = get_xmp_document_id(tmp_file)
+    
+    OID = get_xmp_document_id(tmp_file)    
     LASTC2PA = f"{integrity_path}/c2pa/{OID.upper()}.jpg"
+    logging.info(f"check_photo_for_c2pa - Signing changes since {LASTC2PA}")
     target_path=f"{integrity_path}/tmp/{original_filename}"
     c2pa_fotoware_update(LASTC2PA,tmp_file,target_path)
     upload_to_ftp(target_path)
+    logging.info(f"check_photo_for_c2pa - Coping new C2PA file to {LASTC2PA}")
     os.unlink(LASTC2PA)
     os.rename(target_path, LASTC2PA)
 
 
 async def fotoware_ingested(request):
     with error_handling_and_response() as response:
-        print("Ingest Fired")
+        logging.info(f"fotoware_ingested - Starting")
 #        print(request)
 #        print(response)
         await check_photo_for_c2pa(request)
     return web.json_response(response, status=response.get("status_code"))
 async def fotoware_modified(request):
     with error_handling_and_response() as response:
-        print("=====================================Modify Fired============================")
+        logging.info(f"fotoware_modified - Starting")
 #        print(response)
         await check_photo_for_c2pa(request)
     return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_deleted(request):
     with error_handling_and_response() as response:
-        print("Delete Fired")
+        logging.info(f"fotoware_modified - Starting")
 #        print(request)
 #        print(response)
     return web.json_response(response, status=response.get("status_code"))
@@ -455,9 +437,7 @@ def _get_index_by_label(c2pa, label):
 
 async def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,filename):
 
-    print("====================STARTING CLAIM===========================")
-    print(f"Source {source_file} ")
-    print(f"Target {target_file} ")
+    logging.info(f"c2pa_create_claim - {source_file} => {target_file}")
 
     with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
@@ -505,10 +485,13 @@ async def c2pa_create_claim(source_file,target_file,content_metadata,receipt_jso
         
         tmp_file="/tmp/" + filename  
         shutil.copyfile(source_file,tmp_file)
-        p = subprocess.run([f"{p_c2patool}", f"{tmp_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"], capture_output=True)        
+        
+        args= [f"{p_c2patool}", f"{tmp_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"]
+        p = subprocess.run(args, capture_output=True)
+        logging.info(f"c2pa_create_claim - Ran {args}")
         
         #print([f"{p_c2patool}", f"{source_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"])
-        print(f"C2PA FILE AT {target_file}")
+        logging.info(f"c2pa_create_claim - Complete - {target_file}")
 
 
 def c2pa_validate(source_file):
@@ -522,6 +505,7 @@ def c2pa_validate(source_file):
     return False
 
 def c2pa_fotoware_update(lastC2PA, current_file, filename):
+    logging.info(f"c2pa_fotoware_update - {lastC2PA} + {current_file} => {filename}")
 
     with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_fotoware.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
@@ -536,23 +520,26 @@ def c2pa_fotoware_update(lastC2PA, current_file, filename):
             json.dump(c2pa_1, man)
         p_c2patool = "/root/.cargo/bin/c2patool"
         p = subprocess.run([f"{p_c2patool}", f"{current_file}", "--manifest", f"{lastC2PA}.json", "--output" , f"{filename}", "-p",f"{lastC2PA}"], capture_output=True)
-        print([f"{p_c2patool}", f"{current_file}", "--manifest", f"{lastC2PA}.json", "--output" , f"{filename}", "-p",f"{lastC2PA}"])
-        print(p)
-        print(f"C2PA FILE AT {current_file}")
+        args=[f"{p_c2patool}", f"{current_file}", "--manifest", f"{lastC2PA}.json", "--output" , f"{filename}", "-p",f"{lastC2PA}"]
+        p = subprocess.run(args, capture_output=True)
+        logging.info(f"c2pa_fotoware_update - Ran {args}")
+        logging.info(f"c2pa_create_claim - Complete - {current_file}")        
 
         
 def upload_to_ftp(source):
+    logging.info(f"upload_to_ftp - Staring Session")
     session = ftplib.FTP('site1.fotoware.it','starling','3kfsP4#Q')
     source_name=os.path.basename(source)
     try:
         fileexists = session.size(source_name)
-        print("deleting file over ftp")
+        logging.info(f"upload_to_ftp - Deleting File  {source_name}")
         session.delete(source_name)
     except:
-        print(f"File missing {source_name}. skipping delete")
+        logging.info(f"upload_to_ftp - File missing {source_name}. Skipping delete")
 
-    print(f"Uploading to FTP {source_name}")
+    logging.info(f"upload_to_ftp - Uploading to FTP {source_name}")
     file = open(source,'rb')                  # file to send
     session.storbinary(f"STOR {source_name}", file)     # send the file
     file.close()
     session.quit()
+    logging.info(f"upload_to_ftp - Complete")
