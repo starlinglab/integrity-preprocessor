@@ -388,10 +388,11 @@ async def check_photo_for_c2pa(request):
 
     if "asset" in res["data"]:
         asset=res["data"]["asset"]
+        print("Selecting ASSET Tag")
 
-    original_filename = res["filename"]
+    original_filename = asset["filename"]
 
-    for rendition in res["renditions"]:
+    for rendition in asset["renditions"]:
         if rendition["original"] == True:
             original_rendition=rendition["href"]
 
