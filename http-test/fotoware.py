@@ -280,6 +280,8 @@ async def fotoware_uploaded_thread(request):
     target_filename = "error.jpg"
 
     # Save metadata info
+    uid = "undefined"
+    current_device = "undefined"
     if res==True and is66 == "1" :
         sig66_meta={}
         
@@ -295,12 +297,10 @@ async def fotoware_uploaded_thread(request):
 
         # generate filename
         target_filename = f"{current_device} - {name}{extension.lower()}"
-        target_local_file = f"{uid.upper()}{extension.lower()}"
 
         sig66_meta["original_filename"]=f"{name}{extension}"
         sig66_meta["target_filename"]=target_filename
 
-        
         # Set the UUID to XMP
         sig66_meta["exif_uid"]=uid
         # set xmp UUID
@@ -317,12 +317,16 @@ async def fotoware_uploaded_thread(request):
     else:
         if res==False:
             current_device = "unverified"
-            target_filename = f"{current_device} - {name}{extension.lower()}"
             uid = uid_from_exif(tmp_file)
-            target_local_file = f"{uid.upper()}{extension.lower()}"         
+            # Todo - set one if its not set
             set_xmp_document_id(tmp_file,uid)
             logging.info(f"fotoware_uploaded_thread - Device is not verified")
 
+    target_filename = f"{current_device} - {name}{extension.lower()}"
+    target_local_file = f"{uid.upper()}{extension.lower()}"
+    ts=get_utc_timestmap()
+    target_local_file_ts = f"{uid.upper()}-{ts}-{extension.lower()}"
+    target_local_file_root = f"{uid.upper()}-root-{extension.lower()}"
 
     # Extract from exif?
     date_create_exif = date_create_from_exif(tmp_file)
@@ -355,7 +359,11 @@ async def fotoware_uploaded_thread(request):
     receipt= json.load(f)
 
     logging.info(f"fotoware_uploaded_thread - Creating inital C2PA Claim")
-    await c2pa_create_claim(tmp_file,f"{integrity_path}/c2pa/{target_local_file}",content_metadata.get_content(),receipt,target_filename)
+    target_file_location_path = f"{integrity_path}/c2pa/{target_local_file}"
+
+    await c2pa_create_claim(tmp_file,f"{target_file_location_path}{target_local_file}",content_metadata.get_content(),receipt,target_filename)
+    shutil.copy2(f"{target_file_location_path}{target_local_file}",target_local_file_ts )
+    shutil.copy2(f"{target_file_location_path}{target_local_file}",target_local_file_root)
 
     logging.info(f"fotoware_uploaded_thread - Uploading file to Fotoware archive")
     await fotoware_upload(f"{integrity_path}/c2pa/{target_local_file}",target_filename)        
@@ -381,16 +389,17 @@ async def fotoware_uploaded(request):
         return web.json_response(response, status=response.get("status_code"))
 
 
-async def check_photo_for_c2pa(request):
+async def check_photo_for_c2pa(request,action):
 
     res = await request.json()
     original_rendition = ""
 
+    # Check where the latest metadata from fotoweb is
     asset =res["data"]
-
     if "asset" in res["data"]:
         asset=res["data"]["asset"]
         logging.info(f"check_photo_for_c2pa - Using asset key")
+
 
     original_filename = asset["filename"]
 
@@ -402,17 +411,20 @@ async def check_photo_for_c2pa(request):
     tmp_uuid=uuid.uuid1()
     tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
 
-    logging.info(f"check_photo_for_c2pa - Downloading from Fotoware")
+    logging.info(f"check_photo_for_c2pa - Downloading from Fotoware to {tmp_file}")
     await fotoware_download(original_rendition,tmp_file)
-    logging.info(f"check_photo_for_c2pa - Checking C2PA Integrity")
+
+    logging.info(f"check_photo_for_c2pa - Checking C2PA integrity")
     if c2pa_validate(tmp_file) == True:
-        logging.info(f"check_photo_for_c2pa - C2PA intact, skipping")
+        logging.info(f"check_photo_for_c2pa - C2PA intact, skipping injection")
         return
             
-    # Extract OID
-    
+    # Extract OID and define last c2pa injection
     OID = get_xmp_document_id(tmp_file)    
     LASTC2PA = f"{integrity_path}/c2pa/{OID.upper()}.jpg"
+    ts = get_utc_timestmap()
+    THISC2PA = f"{integrity_path}/c2pa/{OID.upper()}-{ts}.jpg"
+
     logging.info(f"check_photo_for_c2pa - Signing changes since {LASTC2PA}")
     target_path=f"{integrity_path}/tmp/{original_filename}"
     c2pa_fotoware_update(LASTC2PA,tmp_file,target_path)
@@ -421,13 +433,20 @@ async def check_photo_for_c2pa(request):
     os.unlink(LASTC2PA)
     os.rename(target_path, LASTC2PA)
 
+    # Copy versioned as well
+    shutil.copy2(LASTC2PA,THISC2PA)
 
+def get_utc_timestmap():
+    dt = datetime.datetime.now(datetime.timezone.utc)  
+    utc_time = dt.replace(tzinfo=datetime.timezone.utc)
+    utc_timestamp = utc_time.timestamp()
+    return str(utc_timestamp).split(".")[0]
 
 async def fotoware_reprocess(request):
     with error_handling_and_response() as response:
         logging.info(f"fotoware_reprocess - Starting")
         loop = asyncio.get_running_loop()
-        tsk = loop.create_task(check_photo_for_c2pa(request))  
+        tsk = loop.create_task(check_photo_for_c2pa(request,"reprocess"))  
         print(request)
         print(response)
         return web.json_response(response, status=response.get("status_code"))
@@ -436,7 +455,7 @@ async def fotoware_finalize(request):
     with error_handling_and_response() as response:
         logging.info(f"fotoware_finalize - Starting")
         loop = asyncio.get_running_loop()
-        tsk = loop.create_task(check_photo_for_c2pa(request))  
+        tsk = loop.create_task(check_photo_for_c2pa(request,"finalize"))  
         print(request)
         print(response)
         return web.json_response(response, status=response.get("status_code"))
@@ -445,14 +464,14 @@ async def fotoware_finalize(request):
 async def fotoware_ingested(request):
     with error_handling_and_response() as response:
         loop = asyncio.get_running_loop()
-        tsk = loop.create_task(check_photo_for_c2pa(request))
+        tsk = loop.create_task(check_photo_for_c2pa(request,"ingested"))
     return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_modified(request):
     with error_handling_and_response() as response:
         logging.info(f"fotoware_modified - Starting")
         loop = asyncio.get_running_loop()
-        tsk = loop.create_task(check_photo_for_c2pa(request))        
+        tsk = loop.create_task(check_photo_for_c2pa(request,"modified"))        
     return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_deleted(request):
