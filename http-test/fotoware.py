@@ -32,10 +32,13 @@ dotenv.load_dotenv()
 integrity_path="/mnt/integrity_store/starling/internal/reuters/test-collection"
 if not os.path.exists(f"{integrity_path}/tmp"):
     os.mkdir(f"{integrity_path}/tmp")
+if not os.path.exists(f"{integrity_path}/tmp/source"):
+    os.mkdir(f"{integrity_path}/tmp/source")
 if not os.path.exists(f"{integrity_path}/input"):
     os.mkdir(f"{integrity_path}/input")
 if not os.path.exists(f"{integrity_path}/c2pa"):
     os.mkdir(f"{integrity_path}/c2pa")
+
 @contextmanager
 def error_handling_and_response():
     """Context manager to wrap the core of a handler implementation with error handlers.
@@ -93,6 +96,7 @@ def date_create_from_exif(filename):
     return original_date_timestamp
   return ""
 
+######## Add Starling Signature into XMP
 def set_xmp_signatures(filename, signature):
     """
     Create a new starling namespace in XMP and load signature into it
@@ -110,6 +114,7 @@ def set_xmp_signatures(filename, signature):
     xmpfile.put_xmp(xmp)
     xmpfile.close_file()
 
+######## Setup XMP ODID
 def set_xmp_document_id(filename, uid):
     """
     Sets a OID DID and IID XMP in a JPG
@@ -122,6 +127,8 @@ def set_xmp_document_id(filename, uid):
     xmpfile.put_xmp(xmp)
     xmpfile.close_file()
 
+
+##### Get XMP ODID
 def get_xmp_document_id(filename):
     """
     Extract OID from XMP in aJPG
@@ -142,7 +149,7 @@ FOTOWARE_CLIENT_ID = os.environ.get("FOTOWARE_API_CLIENT_ID")
 FOTOWARE_SECRET = os.environ.get("FOTOWARE_API_SECRET")
 FOTOWARE_IP_ADDRESS = "52.166.150.145"
 
-
+### Fotoware Download 
 async def fotoware_download(source_href,target):
     """
     Download a file from fotoware.
@@ -179,6 +186,7 @@ async def fotoware_download(source_href,target):
     with open(target, 'wb') as f:
         f.write(r.content)
 
+### Fotoware Upload
 async def fotoware_upload(source,filename=""):
     """
     Upload a file from fotoware.
@@ -203,6 +211,7 @@ async def fotoware_upload(source,filename=""):
     r=requests.post(f"{FOTOWARE_URL}/fotoweb/archives/5000-Starling/",headers=auth_header,files=files)  
 
 
+### Fotoware oauth
 async def fotoware_oauth(clientid,client_secret):
     '''
     Build oauth token
@@ -210,7 +219,7 @@ async def fotoware_oauth(clientid,client_secret):
     auth={
         "grant_type":"client_credentials",
         "client_id":f"{clientid}",
-        "client_secret":f"{client_secret}"
+        "client_secret":f"{client_secret}"  
     }
     logging.info(f"fotoware_oauth - Generating oauth")    
     response=requests.post(f"{FOTOWARE_URL}/fotoweb/oauth2/token", data=auth)
@@ -219,8 +228,9 @@ async def fotoware_oauth(clientid,client_secret):
     #accessTokenExpires = result["token_type"]
     return accessToken
 
-
+#### Upload Thread
 async def fotoware_uploaded_thread(request):
+    logging.info(f"fotoware_uploaded_thread - Starting") 
     res = await request.json()
     
 
@@ -358,8 +368,16 @@ async def fotoware_uploaded(request):
     '''
     with error_handling_and_response() as response:
         logging.info(f"fotoware_uploaded - Start")         
-        logging.info(f"fotoware_uploaded - Spawning Thread and returing 200") 
-        threading.Thread(target=fotoware_uploaded_thread,args=(request))
+        logging.info(f"fotoware_uploaded - Spawning Thread") 
+        
+        loop = asyncio.get_running_loop()
+        tsk = loop.create_task(fotoware_uploaded_thread(request))
+
+        #loop = asyncio.get_running_loop()
+        #tsk = loop.create_task(fotoware_uploaded_thread(request))
+        # threading.Thread(target=fotoware_uploaded_thread,args=(request))        
+        #threading.Thread(target=fotoware_uploaded_thread,args=[request]).start()
+        logging.info(f"fotoware_uploaded - returing 200") 
         return web.json_response(response, status=response.get("status_code"))
 
 
@@ -389,7 +407,6 @@ async def check_photo_for_c2pa(request):
     logging.info(f"check_photo_for_c2pa - Checking C2PA Integrity")
     if c2pa_validate(tmp_file) == True:
         logging.info(f"check_photo_for_c2pa - C2PA intact, skipping")
-        print("C2PA Intact, Skipping file")
         return
             
     # Extract OID
@@ -405,23 +422,42 @@ async def check_photo_for_c2pa(request):
     os.rename(target_path, LASTC2PA)
 
 
+
+async def fotoware_reprocess(request):
+    with error_handling_and_response() as response:
+        logging.info(f"fotoware_reprocess - Starting")
+        loop = asyncio.get_running_loop()
+        tsk = loop.create_task(check_photo_for_c2pa(request))  
+        print(request)
+        print(response)
+        return web.json_response(response, status=response.get("status_code"))
+
+async def fotoware_finalize(request):
+    with error_handling_and_response() as response:
+        logging.info(f"fotoware_finalize - Starting")
+        loop = asyncio.get_running_loop()
+        tsk = loop.create_task(check_photo_for_c2pa(request))  
+        print(request)
+        print(response)
+        return web.json_response(response, status=response.get("status_code"))
+
+
 async def fotoware_ingested(request):
     with error_handling_and_response() as response:
-        logging.info(f"fotoware_ingested - Starting")
-#        print(request)
-#        print(response)
-        await check_photo_for_c2pa(request)
+        loop = asyncio.get_running_loop()
+        tsk = loop.create_task(check_photo_for_c2pa(request))
     return web.json_response(response, status=response.get("status_code"))
+
 async def fotoware_modified(request):
     with error_handling_and_response() as response:
         logging.info(f"fotoware_modified - Starting")
-#        print(response)
-        await check_photo_for_c2pa(request)
+        loop = asyncio.get_running_loop()
+        tsk = loop.create_task(check_photo_for_c2pa(request))        
     return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_deleted(request):
     with error_handling_and_response() as response:
-        logging.info(f"fotoware_modified - Starting")
+        logging.info(f"fotoware_modified - Starting")        
 #        print(request)
 #        print(response)
     return web.json_response(response, status=response.get("status_code"))
@@ -436,6 +472,7 @@ async def c2pa_create_claim(source_file,target_file,content_metadata,receipt_jso
 
     with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
+        c2pa_1["title"] = filename
         c2pa_1["claim_generator"] = "Sig66"
 
         # Insert authorship information
@@ -481,7 +518,11 @@ async def c2pa_create_claim(source_file,target_file,content_metadata,receipt_jso
         tmp_file="/tmp/" + filename  
         shutil.copyfile(source_file,tmp_file)
         
-        args= [f"{p_c2patool}", f"{tmp_file}", "--manifest", f"{source_file}.json", "--output" , f"{target_file}", "--force"]
+        args= [f"{p_c2patool}", 
+            f"{tmp_file}", 
+            "--manifest", f"{source_file}.json", 
+            "--output" , f"{target_file}", 
+            "--force"]
         p = subprocess.run(args, capture_output=True)
         logging.info(f"c2pa_create_claim - Ran {args}")
         
@@ -514,7 +555,12 @@ def c2pa_fotoware_update(lastC2PA, current_file, filename):
         with open(f"{lastC2PA}.json", "w") as man:
             json.dump(c2pa_1, man)
         p_c2patool = "/root/.cargo/bin/c2patool"
-        p = subprocess.run([f"{p_c2patool}", f"{current_file}", "--manifest", f"{lastC2PA}.json", "--output" , f"{filename}", "-p",f"{lastC2PA}"], capture_output=True)
+        p = subprocess.run([f"{p_c2patool}", 
+                    f"{current_file}", 
+                    "--manifest", f"{lastC2PA}.json", 
+                    "--output" , f"{filename}", 
+                    "-p",f"{lastC2PA}"]
+                , capture_output=True)
         args=[f"{p_c2patool}", f"{current_file}", "--manifest", f"{lastC2PA}.json", "--output" , f"{filename}", "-p",f"{lastC2PA}"]
         p = subprocess.run(args, capture_output=True)
         logging.info(f"c2pa_fotoware_update - Ran {args}")

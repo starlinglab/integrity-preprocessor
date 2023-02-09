@@ -296,6 +296,8 @@ app = web.Application(
 app.add_routes([web.post("/v1/assets/create", create)])
 app.add_routes([web.post("/v1/fotoware/ingestedasset", fotoware.fotoware_ingested)])
 #, fotoware.fotoware_ingested)])
+app.add_routes([web.post("/v1/fotoware/reprocessasset", fotoware.fotoware_reprocess)])
+app.add_routes([web.post("/v1/fotoware/finalizeasset", fotoware.fotoware_finalize)])
 app.add_routes([web.post("/v1/fotoware/modifiedasset", fotoware.fotoware_modified)])
 app.add_routes([web.post("/v1/fotoware/deletedasset", fotoware.fotoware_deleted)])
 app.add_routes([web.post("/v1/fotoware/uploadedasset", fotoware.fotoware_uploaded)])
