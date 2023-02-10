@@ -233,7 +233,6 @@ async def fotoware_uploaded_thread(request):
     logging.info(f"fotoware_uploaded_thread - Starting") 
     res = await request.json()
     
-
     original_rendition = ""
     original_filename = res["data"]["filename"]
     for rendition in res["data"]["renditions"]:
@@ -305,6 +304,7 @@ async def fotoware_uploaded_thread(request):
         sig66_meta["exif_uid"]=uid
         # set xmp UUID
         set_xmp_document_id(tmp_file,uid)
+        content_metadata.set_source("odid",uid)        
         logging.info(f"fotoware_uploaded_thread - XMP OID is set to UID of {uid}")
 
         content_metadata.add_private_key({"sig66": sig66_meta})
@@ -361,9 +361,9 @@ async def fotoware_uploaded_thread(request):
     logging.info(f"fotoware_uploaded_thread - Creating inital C2PA Claim")
     target_file_location_path = f"{integrity_path}/c2pa/{target_local_file}"
 
-    await c2pa_create_claim(tmp_file,f"{target_file_location_path}{target_local_file}",content_metadata.get_content(),receipt,target_filename)
-    shutil.copy2(f"{target_file_location_path}{target_local_file}",target_local_file_ts )
-    shutil.copy2(f"{target_file_location_path}{target_local_file}",target_local_file_root)
+    await c2pa_create_claim(tmp_file,f"{target_file_location_path}{target_local_file_ts}",content_metadata.get_content(),receipt,target_filename)
+    shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",target_local_file)
+    shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",target_local_file_root)
 
     logging.info(f"fotoware_uploaded_thread - Uploading file to Fotoware archive")
     await fotoware_upload(f"{integrity_path}/c2pa/{target_local_file}",target_filename)        
