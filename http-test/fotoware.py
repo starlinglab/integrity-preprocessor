@@ -325,8 +325,8 @@ async def fotoware_uploaded_thread(request):
     target_filename = f"{current_device} - {name}{extension.lower()}"
     target_local_file = f"{uid.upper()}{extension.lower()}"
     ts=get_utc_timestmap()
-    target_local_file_ts = f"{uid.upper()}-{ts}-{extension.lower()}"
-    target_local_file_root = f"{uid.upper()}-root-{extension.lower()}"
+    target_local_file_ts = f"{uid.upper()}-{ts}{extension.lower()}"
+    target_local_file_root = f"{uid.upper()}-root{extension.lower()}"
 
     # Extract from exif?
     date_create_exif = date_create_from_exif(tmp_file)
@@ -359,7 +359,7 @@ async def fotoware_uploaded_thread(request):
     receipt= json.load(f)
 
     logging.info(f"fotoware_uploaded_thread - Creating inital C2PA Claim")
-    target_file_location_path = f"{integrity_path}/c2pa/{target_local_file}"
+    target_file_location_path = f"{integrity_path}/c2pa"
 
     await c2pa_create_claim(tmp_file,f"{target_file_location_path}{target_local_file_ts}",content_metadata.get_content(),receipt,target_filename)
     shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",target_local_file)
