@@ -4,3 +4,4 @@
 /lib/validate @makeworld-the-better-one
 /tests @makeworld-the-better-one
 /pytest.ini @makeworld-the-better-one
+/mnemonic_addr.py @makeworld-the-better-one
