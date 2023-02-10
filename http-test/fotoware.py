@@ -366,7 +366,7 @@ async def fotoware_uploaded_thread(request):
     shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",target_local_file_root)
 
     logging.info(f"fotoware_uploaded_thread - Uploading file to Fotoware archive")
-    await fotoware_upload(f"{integrity_path}/c2pa/{target_local_file}",target_filename)        
+    await fotoware_upload(f"{target_file_location_path}{target_local_file}",target_filename)        
    
     logging.info(f"fotoware_uploaded_thread - Success")
 
