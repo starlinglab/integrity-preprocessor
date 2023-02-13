@@ -570,11 +570,16 @@ def c2pa_validate(source_file):
             return False
     return False
 
-def c2pa_fotoware_update(lastC2PA, current_file, filename,source,history):
+def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history):
     logging.info(f"c2pa_fotoware_update - {lastC2PA} + {current_file} => {filename}")
 
     json_file=""
     action="c2pa.managed"
+
+    source = "fotoware"
+    if webhook_action == "reprocess":
+        source="photoshop"
+        
     if source=="fotoware":
         json_file = "/root/dev/integrity-preprocessor/http-test/template/c2pa_fotoware.json"
         action = "c2pa.managed"
