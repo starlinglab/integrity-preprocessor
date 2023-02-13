@@ -1,6 +1,6 @@
 {
-    "vendor": "Photoshop_via_Starling",
-    "claim_generator": "photoshop_via_starling",
+    "vendor": "photoshop_via_starling",
+    "claim_generator": "Photoshop_via_Starling",
     "alg": "es256",
     "private_key": "/root/dev/integrity-preprocessor/http-test/cert.key",
     "sign_cert": "/root/dev/integrity-preprocessor/http-test/cert.pem",

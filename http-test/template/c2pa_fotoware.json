@@ -1,6 +1,6 @@
 {
     "vendor": "fotoware_via_starling",
-    "claim_generator": "fotoware_via_starling",
+    "claim_generator": "Fotoware_via_Starling",
     "alg": "es256",
     "private_key": "/root/dev/integrity-preprocessor/http-test/cert.key",
     "sign_cert": "/root/dev/integrity-preprocessor/http-test/cert.pem",
