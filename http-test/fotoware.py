@@ -143,6 +143,15 @@ def get_xmp_document_id(filename):
     xmpfile.close_file()
     return res
 
+def get_xmp_photoshop_history(filename):
+    xmpfile = XMPFiles( file_path=filename)
+
+    xmp = xmpfile.get_xmp()
+    XMP_NS_PHOTOSHOP = "http://ns.adobe.com/photoshop/1.0/"
+    if xmp.does_property_exist(XMP_NS_PHOTOSHOP,u'History'):
+        return xmp.get_property(XMP_NS_PHOTOSHOP,u'History')
+
+
 ######## fotoware
 FOTOWARE_URL = os.environ.get("FOTOWARE_API_URL")
 FOTOWARE_CLIENT_ID = os.environ.get("FOTOWARE_API_CLIENT_ID")
@@ -327,6 +336,7 @@ async def fotoware_uploaded_thread(request):
     ts=get_utc_timestmap()
     target_local_file_ts = f"{uid.upper()}-{ts}{extension.lower()}"
     target_local_file_root = f"{uid.upper()}-root{extension.lower()}"
+    logging.info(f"Setting {uid.upper()} to  {ts}")
 
     # Extract from exif?
     date_create_exif = date_create_from_exif(tmp_file)
@@ -359,11 +369,12 @@ async def fotoware_uploaded_thread(request):
     receipt= json.load(f)
 
     logging.info(f"fotoware_uploaded_thread - Creating inital C2PA Claim")
-    target_file_location_path = f"{integrity_path}/c2pa"
+    target_file_location_path = f"{integrity_path}/c2pa/"
 
     await c2pa_create_claim(tmp_file,f"{target_file_location_path}{target_local_file_ts}",content_metadata.get_content(),receipt,target_filename)
-    shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",target_local_file)
-    shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",target_local_file_root)
+    logging.info(f"Saving at {target_local_file} and {target_local_file_root}")
+    shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",f"{target_file_location_path}/{target_local_file}")
+    shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",f"{target_file_location_path}/{target_local_file_root}")
 
     logging.info(f"fotoware_uploaded_thread - Uploading file to Fotoware archive")
     await fotoware_upload(f"{target_file_location_path}{target_local_file}",target_filename)        
@@ -427,7 +438,7 @@ async def check_photo_for_c2pa(request,action):
 
     logging.info(f"check_photo_for_c2pa - Signing changes since {LASTC2PA}")
     target_path=f"{integrity_path}/tmp/{original_filename}"
-    c2pa_fotoware_update(LASTC2PA,tmp_file,target_path)
+    c2pa_fotoware_update(LASTC2PA,tmp_file,target_path,action,None)
     upload_to_ftp(target_path)
     logging.info(f"check_photo_for_c2pa - Coping new C2PA file to {LASTC2PA}")
     os.unlink(LASTC2PA)
@@ -559,17 +570,27 @@ def c2pa_validate(source_file):
             return False
     return False
 
-def c2pa_fotoware_update(lastC2PA, current_file, filename):
+def c2pa_fotoware_update(lastC2PA, current_file, filename,source,history):
     logging.info(f"c2pa_fotoware_update - {lastC2PA} + {current_file} => {filename}")
 
-    with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_fotoware.json") as c2pa_template_handle:
+    json_file=""
+    action="c2pa.managed"
+    if source=="fotoware":
+        json_file = "/root/dev/integrity-preprocessor/http-test/template/c2pa_fotoware.json"
+        action = "c2pa.managed"
+    if source=="photoshop":
+        json_file = "/root/dev/integrity-preprocessor/http-test/template/c2pa_photostop.json"
+        action = "c2pa.edited"
+
+    with open(json_file) as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
-        c2pa_1["claim_generator"] = "Fotoware"
-        
+        c2pa_1["title"] = filename
+
         # Insert c2pa.created actions
         m = _get_index_by_label(c2pa_1, "c2pa.actions")
-        n = [i for i, o in enumerate(c2pa_1["assertions"][m]["data"]["actions"]) if o["action"] == "c2pa.managed"][0]
+        n = [i for i, o in enumerate(c2pa_1["assertions"][m]["data"]["actions"]) if o["action"] == action][0]
         c2pa_1["assertions"][m]["data"]["actions"][n]["when"] = datetime.datetime.now().isoformat()
+        c2pa_1["assertions"][m]["data"]["actions"][n]["history"] = history
 
         with open(f"{lastC2PA}.json", "w") as man:
             json.dump(c2pa_1, man)

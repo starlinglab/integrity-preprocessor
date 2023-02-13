@@ -1,6 +1,6 @@
 {
-    "vendor": "fotoware_via_starling",
-    "claim_generator": "fotoware_via_starling",
+    "vendor": "photoshop_via_starling",
+    "claim_generator": "photoshop_via_starling",
     "alg": "es256",
     "private_key": "/root/dev/integrity-preprocessor/http-test/cert.key",
     "sign_cert": "/root/dev/integrity-preprocessor/http-test/cert.pem",
@@ -17,7 +17,7 @@
                         "@type": "{{ contentMetadata.author.@type }}",
                         "credential": [],
                         "identifier": "Organization",
-                        "name": "Fotoware"
+                        "name": "Photoshop"
                     }
                 ]
             }
@@ -27,7 +27,7 @@
             "data": {
                 "actions": [
                     {
-                        "action": "c2pa.managed",
+                        "action": "c2pa.edited",
                         "when": null,
                         "history": null
                     }
