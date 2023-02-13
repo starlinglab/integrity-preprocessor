@@ -502,7 +502,7 @@ async def c2pa_create_claim(source_file,target_file,content_metadata,receipt_jso
 
     with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
-        c2pa_1["title"] = filename
+        c2pa_1["title"] = os.path.basename(filename)
         c2pa_1["claim_generator"] = "Sig66"
 
         # Insert authorship information
@@ -589,7 +589,7 @@ def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history
 
     with open(json_file) as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
-        c2pa_1["title"] = filename
+        c2pa_1["title"] = os.path.basename(filename)
 
         # Insert c2pa.created actions
         m = _get_index_by_label(c2pa_1, "c2pa.actions")
