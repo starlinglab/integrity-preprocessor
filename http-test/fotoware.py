@@ -101,6 +101,7 @@ def set_xmp_signatures(filename, signature):
     """
     Create a new starling namespace in XMP and load signature into it
     """
+    logging.info(f"set_xmp_signatures - Adding signatures so {filename}")
     const_xmp_starling = "http://starlinglab.org/integrity/signatures"
     xmpfile = XMPFiles( file_path=filename, open_forupdate=True )
     xmp = xmpfile.get_xmp()
