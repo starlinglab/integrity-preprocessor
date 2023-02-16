@@ -50,7 +50,7 @@ def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output
         archive.write(source_file, sha256asset + ext)
         content_meta_data = {"contentMetadata": content_meta}
         archive.writestr(
-            sha256asset + "-meta-content.json", json.dumps(content_meta_data)
+            sha256asset + "-meta-content.json", json.dumps(content_meta_data,ensure_ascii=False)
         )
         archive.writestr(
             sha256asset + "-meta-recorder.json",
