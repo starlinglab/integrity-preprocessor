@@ -1,3 +1,4 @@
+import time
 import threading
 import subprocess
 import datetime
@@ -160,7 +161,7 @@ FOTOWARE_SECRET = os.environ.get("FOTOWARE_API_SECRET")
 FOTOWARE_IP_ADDRESS = "52.166.150.145"
 
 ### Fotoware Download 
-async def fotoware_download(source_href,target):
+def fotoware_download(source_href,target):
     """
     Download a file from fotoware.
 
@@ -168,7 +169,7 @@ async def fotoware_download(source_href,target):
     target: where to save the file
     """
     ## Download original image via API
-    token = await fotoware_oauth(FOTOWARE_CLIENT_ID,FOTOWARE_SECRET)
+    token = fotoware_oauth(FOTOWARE_CLIENT_ID,FOTOWARE_SECRET)
     auth_header= {
         "Authorization": f"Bearer {token}",
     }
@@ -189,7 +190,7 @@ async def fotoware_download(source_href,target):
     r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
     while r.status_code == 202:
         logging.info(f"fotoware_download - Waiting for download request to be available (202)")
-        await asyncio.sleep(3)
+        time.sleep(3)
         r=requests.get(f"{FOTOWARE_URL}/" + href,headers=auth_header)
 
     # Save the contrent
@@ -197,7 +198,7 @@ async def fotoware_download(source_href,target):
         f.write(r.content)
 
 ### Fotoware Upload
-async def fotoware_upload(source,filename=""):
+def fotoware_upload(source,filename=""):
     """
     Upload a file from fotoware.
 
@@ -213,7 +214,7 @@ async def fotoware_upload(source,filename=""):
         filename = os.path.basename(filename)
     files={filename: open(new_source,'rb')}
 
-    token = await fotoware_oauth(FOTOWARE_CLIENT_ID,FOTOWARE_SECRET)
+    token = fotoware_oauth(FOTOWARE_CLIENT_ID,FOTOWARE_SECRET)
     auth_header= {
         "Authorization": f"Bearer {token}",
     }
@@ -222,7 +223,7 @@ async def fotoware_upload(source,filename=""):
 
 
 ### Fotoware oauth
-async def fotoware_oauth(clientid,client_secret):
+def fotoware_oauth(clientid,client_secret):
     '''
     Build oauth token
     '''
@@ -239,9 +240,9 @@ async def fotoware_oauth(clientid,client_secret):
     return accessToken
 
 #### Upload Thread
-async def fotoware_uploaded_thread(request):
+def fotoware_uploaded_thread(res):
     logging.info(f"fotoware_uploaded_thread - Starting") 
-    res = await request.json()
+
     
     original_rendition = ""
     original_filename = res["data"]["filename"]
@@ -257,7 +258,7 @@ async def fotoware_uploaded_thread(request):
     tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
     tmp_file_orig = f"{tmp_file}.orig.jpg"
     
-    await fotoware_download(original_rendition,tmp_file)
+    fotoware_download(original_rendition,tmp_file)
   
     shutil.copyfile(tmp_file,tmp_file_orig)
     doc_id = get_xmp_document_id(tmp_file)
@@ -362,7 +363,7 @@ async def fotoware_uploaded_thread(request):
     logging.info(f"fotoware_uploaded_thread - Waiting for pipeline to finish")
     while not os.path.exists(receipt_path):
         print(".",end = '')
-        await asyncio.sleep(3)
+        time.sleep(3) 
     print(".")
 
     logging.info(f"fotoware_uploaded_thread - Reading receipt file from {receipt_path}")
@@ -372,13 +373,13 @@ async def fotoware_uploaded_thread(request):
     logging.info(f"fotoware_uploaded_thread - Creating inital C2PA Claim")
     target_file_location_path = f"{integrity_path}/c2pa/"
 
-    await c2pa_create_claim(tmp_file,f"{target_file_location_path}{target_local_file_ts}",content_metadata.get_content(),receipt,target_filename)
+    c2pa_create_claim(tmp_file,f"{target_file_location_path}{target_local_file_ts}",content_metadata.get_content(),receipt,target_filename)
     logging.info(f"Saving at {target_local_file} and {target_local_file_root}")
     shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",f"{target_file_location_path}/{target_local_file}")
     shutil.copy2(f"{target_file_location_path}{target_local_file_ts}",f"{target_file_location_path}/{target_local_file_root}")
 
     logging.info(f"fotoware_uploaded_thread - Uploading file to Fotoware archive")
-    await fotoware_upload(f"{target_file_location_path}{target_local_file}",target_filename)        
+    fotoware_upload(f"{target_file_location_path}{target_local_file}",target_filename)        
    
     logging.info(f"fotoware_uploaded_thread - Success")
 
@@ -390,20 +391,23 @@ async def fotoware_uploaded(request):
         logging.info(f"fotoware_uploaded - Start")         
         logging.info(f"fotoware_uploaded - Spawning Thread") 
         
-        loop = asyncio.get_running_loop()
-        tsk = loop.create_task(fotoware_uploaded_thread(request))
+        #loop = asyncio.get_running_loop()
+        #tsk = loop.create_task(fotoware_uploaded_thread(request))
 
         #loop = asyncio.get_running_loop()
         #tsk = loop.create_task(fotoware_uploaded_thread(request))
         # threading.Thread(target=fotoware_uploaded_thread,args=(request))        
-        #threading.Thread(target=fotoware_uploaded_thread,args=[request]).start()
+
+        res  = await request.json()
+        threading.Thread(target=fotoware_uploaded_thread,args=[res]).start()
+
         logging.info(f"fotoware_uploaded - returing 200") 
         return web.json_response(response, status=response.get("status_code"))
 
 
-async def check_photo_for_c2pa(request,action):
+async def check_photo_for_c2pa(res,action):
 
-    res = await request.json()
+    #res = await request.json()
     original_rendition = ""
 
     # Check where the latest metadata from fotoweb is
@@ -424,7 +428,7 @@ async def check_photo_for_c2pa(request,action):
     tmp_file = f"{integrity_path}/tmp/{tmp_uuid}.jpg"
 
     logging.info(f"check_photo_for_c2pa - Downloading from Fotoware to {tmp_file}")
-    await fotoware_download(original_rendition,tmp_file)
+    fotoware_download(original_rendition,tmp_file)
 
     logging.info(f"check_photo_for_c2pa - Checking C2PA integrity")
     if c2pa_validate(tmp_file) == True:
@@ -457,8 +461,14 @@ def get_utc_timestmap():
 async def fotoware_reprocess(request):
     with error_handling_and_response() as response:
         logging.info(f"fotoware_reprocess - Starting")
-        loop = asyncio.get_running_loop()
-        tsk = loop.create_task(check_photo_for_c2pa(request,"reprocess"))  
+
+        #loop = asyncio.get_running_loop()
+        #tsk = loop.create_task(check_photo_for_c2pa(request,"reprocess"))  
+
+        res  = await request.json()
+        threading.Thread(target=check_photo_for_c2pa,args=[res,"reprocess"]).start()
+
+
         print(request)
         print(response)
         return web.json_response(response, status=response.get("status_code"))
@@ -466,8 +476,13 @@ async def fotoware_reprocess(request):
 async def fotoware_finalize(request):
     with error_handling_and_response() as response:
         logging.info(f"fotoware_finalize - Starting")
-        loop = asyncio.get_running_loop()
-        tsk = loop.create_task(check_photo_for_c2pa(request,"finalize"))  
+
+        #loop = asyncio.get_running_loop()
+        #tsk = loop.create_task(check_photo_for_c2pa(request,"finalize"))  
+
+        res  = await request.json()
+        threading.Thread(target=check_photo_for_c2pa,args=[res,"finalize"]).start()
+
         print(request)
         print(response)
         return web.json_response(response, status=response.get("status_code"))
@@ -475,8 +490,13 @@ async def fotoware_finalize(request):
 
 async def fotoware_ingested(request):
     with error_handling_and_response() as response:
-        loop = asyncio.get_running_loop()
-        tsk = loop.create_task(check_photo_for_c2pa(request,"ingested"))
+        
+        #loop = asyncio.get_running_loop()
+        #tsk = loop.create_task(check_photo_for_c2pa(request,"ingested"))
+
+        res  = await request.json()
+        threading.Thread(target=check_photo_for_c2pa,args=[res,"ingested"]).start()
+
     return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_modified(request):
@@ -497,7 +517,7 @@ async def fotoware_deleted(request):
 def _get_index_by_label(c2pa, label):
     return [i for i, o in enumerate(c2pa["assertions"]) if o["label"] == label][0]
 
-async def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,filename):
+def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,filename):
 
     logging.info(f"c2pa_create_claim - {source_file} => {target_file}")
 
