@@ -484,8 +484,8 @@ while True:
                     {"aid": aid, "id": crawl_config["id"], "name": crawl_name}
                 )
 
-    # If less then 3 crawls happening, and there is a queue, start the next item
-    while crawl_running_count < 3 and len(queuelist) > 0:
+    # If less then 5 crawls happening, and there is a queue, start the next item
+    while crawl_running_count < 5 and len(queuelist) > 0:
 
         r = queuelist.pop()
         aid = r["aid"]
