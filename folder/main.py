@@ -149,7 +149,7 @@ class watch_folder:
             lock_file = self.config["lockFile"]
         _wait_for_file_to_close(source_filename, lock_file)
 
-        content_metadata = common.metadata()
+        content_metadata = common.Metadata()
         content_metadata.set_mime_from_file(source_filename)
         
         meta_method = "Generic"

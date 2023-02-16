@@ -38,7 +38,7 @@ def start_metadata_content(ingestor, meta_chat):
         Exception not at this time
     """
 
-    meta_content_object = common.metadata()
+    meta_content_object = common.Metadata()
 
     bot_type = ingestor["type"]
     bot_metadata={
