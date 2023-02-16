@@ -403,17 +403,8 @@ while True:
                 f = open(meta_additional_filename)
                 meta_additional = json.load(f)
 
-            # Todo -refactor to work like folder index
-            if meta_additional:
-                content_metadata.add_extras_key({"additional":meta_additional["extras"] })
-                content_metadata.add_private_key({"additional":meta_additional["private"] })
-                if "sourceId" in meta_additional:
-                    content_metadata.set_source_id_dict(meta_additional["sourceId"])
-
             content_metadata.add_private_key({"crawl_config":meta_crawl})
             content_metadata.add_private_key({"crawl_data":crawl_json,})
-
-
 
             if TARGET_DESCRIPTION[current_collection]:
                 content_metadata.description(TARGET_DESCRIPTION[current_collection])
@@ -422,6 +413,21 @@ while True:
             if TARGET_AUTHOR[current_collection]:
                 content_metadata.author(TARGET_AUTHOR[current_collection])
             i = 1
+
+            # Todo -refactor to work like folder index
+            if meta_additional:
+                content_metadata.add_extras_key({"additional":meta_additional["extras"] })
+                content_metadata.add_private_key({"additional":meta_additional["private"] })
+                if "sourceId" in meta_additional:
+                    content_metadata.set_source_id_dict(meta_additional["sourceId"])
+                if "description" in meta_additional and  meta_additional["description"] != "":
+                    content_metadata.description(meta_additional["description"])
+
+                if "name" in meta_additional and  meta_additional["name"] != "":
+                    content_metadata.name(meta_additional["name"])
+
+                if "author" in meta_additional and  meta_additional["author"]:
+                    content_metadata.author(meta_additional["author"])
 
             out_file = common.add_to_pipeline(
                 wacz_path,
