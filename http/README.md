@@ -14,7 +14,7 @@ To run in debug mode, set the environement variable `HTTP_DEBUG=1`. This will di
 
 The server is configured using environment variables in a `.env` file. An example file [env.example](env.example) is provided.
 
-The `KEYS_FILE` is path to a file of newline-separated Ethereum public keys in compressed bytes format, for example: `03aced43f9dddc120291f5cdf73580fbb592b5b21054ce61eb73cbaf98efcbe82e`. Only these keys are accepted as valid when doing cryptographic validation. If the variable is not specified then all keys will be accepted.
+The `KEYS_FILE` is path to a file of newline-separated Ethereum public keys in compressed bytes format, for example: `03aced43f9dddc120291f5cdf73580fbb592b5b21054ce61eb73cbaf98efcbe82e`. Keys that appear in this file will get an extra field in the metadata. All keys will still be accepted.
 
 Empty lines and lines starting with `#` will be ignored.
 
