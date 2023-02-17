@@ -24,6 +24,8 @@ import exifread
 from libxmp import XMPFiles, consts # python-xmp-toolkit apt - exempi
 import dotenv
 
+
+
 logging = common.logging
 logging.info("Started folder preprocessor")
 
@@ -159,6 +161,7 @@ FOTOWARE_URL = os.environ.get("FOTOWARE_API_URL")
 FOTOWARE_CLIENT_ID = os.environ.get("FOTOWARE_API_CLIENT_ID")
 FOTOWARE_SECRET = os.environ.get("FOTOWARE_API_SECRET")
 FOTOWARE_IP_ADDRESS = "52.166.150.145"
+FOTOWARE_FTP_PASSWORD = os.environ.get("FOTOWARE_FTP_PASSWORD")
 
 ### Fotoware Download 
 def fotoware_download(source_href,target):
@@ -401,11 +404,11 @@ async def fotoware_uploaded(request):
         res  = await request.json()
         threading.Thread(target=fotoware_uploaded_thread,args=[res]).start()
 
-        logging.info(f"fotoware_uploaded - returing 200") 
+        logging.info(f"fotoware_uploaded - returning 200") 
         return web.json_response(response, status=response.get("status_code"))
 
 
-async def check_photo_for_c2pa(res,action):
+def check_photo_for_c2pa(res,action):
 
     #res = await request.json()
     original_rendition = ""
@@ -502,8 +505,14 @@ async def fotoware_ingested(request):
 async def fotoware_modified(request):
     with error_handling_and_response() as response:
         logging.info(f"fotoware_modified - Starting")
-        loop = asyncio.get_running_loop()
-        tsk = loop.create_task(check_photo_for_c2pa(request,"modified"))        
+        #loop = asyncio.get_running_loop()        
+        #tsk = loop.create_task(check_photo_for_c2pa(request,"modified"))        
+
+        res  = await request.json()
+        threading.Thread(target=check_photo_for_c2pa,args=[res,"modified"]).start()
+
+        
+
     return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_deleted(request):
@@ -635,7 +644,7 @@ def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history
         
 def upload_to_ftp(source):
     logging.info(f"upload_to_ftp - Staring Session")
-    session = ftplib.FTP('site1.fotoware.it','starling','3kfsP4#Q')
+    session = ftplib.FTP('site1.fotoware.it','starling',str(FOTOWARE_FTP_PASSWORD))
     source_name=os.path.basename(source)
     try:
         fileexists = session.size(source_name)
