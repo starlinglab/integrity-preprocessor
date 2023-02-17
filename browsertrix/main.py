@@ -13,11 +13,12 @@ from base64 import urlsafe_b64decode
 import dotenv
 from pathlib import Path
 import hashlib
+import traceback
 
 # Kludge
 import sys
 
-sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import common
 
 dotenv.load_dotenv()
@@ -86,6 +87,7 @@ if "collections" in config_data:
                 target_subfolder = "review"
 
         TARGET_PATH[aid] = wacz_path = os.path.join(TARGET_ROOT_PATH[aid], target_subfolder)
+
         if not os.path.exists(TARGET_PATH[aid]):
             os.makedirs(TARGET_PATH[aid])
 
@@ -104,21 +106,6 @@ if not os.path.exists(TARGET_PATH_TMP["default"]):
 
 metdata_file_timestamp = 0
 
-
-default_author = {
-    "@type": "Organization",
-    "identifier": "https://starlinglab.org",
-    "name": "Starling Lab",
-}
-
-default_content = {
-    "name": "Web archive",
-    "mime": "application/wacz",
-    "description": "Archive collected by browsertrix-cloud",
-    "author": default_author,
-}
-
-
 def download_file(url, local_filename):
     # NOTE the stream=True parameter below
     with requests.get(url, stream=True) as r:
@@ -132,61 +119,6 @@ def download_file(url, local_filename):
         else:
             return -1
     return 1
-
-
-def generate_metadata_content(
-    meta_crawl_config,
-    meta_crawl_data,
-    meta_additional,
-    meta_extra,
-    meta_date_created,
-    author,
-):
-
-    extras = deepcopy(meta_extra)
-    if "extras" in meta_additional:
-        extras.update(meta_additional["extras"])
-    private = {}
-    if "private" in meta_additional:
-        private.update(meta_additional["private"])
-    sourceId = None
-    if "sourceId" in meta_additional:
-        sourceId = meta_additional["sourceId"]
-
-    private["crawlConfigs"] = meta_crawl_config
-    private["crawlData"] = meta_crawl_data
-
-    meta_content = deepcopy(default_content)
-    if author:
-        meta_content["author"] = author
-
-    create_date = meta_date_created.split("T")[0]
-    meta_content["name"] = f"Web archive on {create_date}"
-
-    pagelist = ""
-    if "pages" in extras:
-        i = []
-        c = 0
-        suffix = ""
-        for item in extras["pages"]:
-            c = c + 1
-            if c == 4:
-                suffix = ", ..."
-            i.append(extras["pages"][item])
-        pagelist = "[ " + ", ".join(i[:3]) + f"{suffix} ]"
-
-    meta_content[
-        "description"
-    ] = f"Web archive {pagelist} captured using Browsertrix on {create_date}"
-
-    meta_content["dateCreated"] = meta_date_created
-    meta_content["extras"] = extras
-    meta_content["private"] = private
-    if sourceId:
-        meta_content["sourceId"] = sourceId
-    meta_content["timestamp"] = datetime.utcnow().isoformat() + "Z"
-
-    return meta_content
 
 
 def send_to_prometheus(metrics):
@@ -300,6 +232,28 @@ if os.path.exists(DATA_JSON_PATH):
     with open(DATA_JSON_PATH, "r") as f:
         data = json.load(f)
 
+def register_error(e,wacz_path):
+
+    path,filename=os.path.split(wacz_path)
+    path = os.path.split(path)[0]
+
+    error_path=f"{path}/error-wacz"
+    
+    logging.exception(e)
+    logging.error("Error processing wacz file")
+
+    if not os.path.isdir(error_path):
+        os.mkdir(error_path)
+
+    os.rename(
+        wacz_path,
+        error_path + "/" + filename,
+    )
+    f = open(error_path + "/" + filename + ".log", "a")
+    f.write(str(e))
+    f.write(traceback.format_exc())
+    f.close()
+    Path(wacz_path + ".done").touch()
 
 # Write initial file
 send_to_prometheus(metrics)
@@ -425,10 +379,14 @@ while True:
 
             # Meta data collection and generation
             recorder_meta = common.get_recorder_meta("browsertrix")
+            content_metadata = common.Metadata()
+            try:
+                content_metadata.process_wacz(wacz_path)
+            except Exception as e:
+                register_error(e,wacz_path)
 
-            meta_additional = ""
-            meta_crawl = ""
-            meta_date_created = ""
+                continue
+            content_metadata.createdate(crawl_json["started"])
 
             # Get craw cawlconfig from API
             meta_crawl = get_crawl_config(crawl["cid"], aid)
@@ -440,33 +398,40 @@ while True:
                 + crawl["cid"]
                 + ".json"
             )
+            meta_additional = None
             if os.path.exists(meta_additional_filename):
                 f = open(meta_additional_filename)
                 meta_additional = json.load(f)
 
-            meta_extra = common.parse_wacz_data_extra(wacz_path)
-            meta_date_created = crawl_json["started"]
+            content_metadata.add_private_key({"crawl_config":meta_crawl})
+            content_metadata.add_private_key({"crawl_data":crawl_json,})
 
-            content_meta = generate_metadata_content(
-                meta_crawl,
-                crawl_json,
-                meta_additional,
-                meta_extra,
-                meta_date_created,
-                TARGET_AUTHOR[current_collection],
-            )
-            if "validatedSignatures" in content_meta["extras"]:
-                content_meta["validatedSignatures"]  = content_meta["extras"]["validatedSignatures"]
-                del content_meta["extras"]["validatedSignatures"]
             if TARGET_DESCRIPTION[current_collection]:
-                content_meta["description"]=TARGET_DESCRIPTION[current_collection]
+                content_metadata.description(TARGET_DESCRIPTION[current_collection])
             if TARGET_NAME[current_collection]:
-                content_meta["name"]=TARGET_NAME[current_collection]
+                content_metadata.name(TARGET_NAME[current_collection])
+            if TARGET_AUTHOR[current_collection]:
+                content_metadata.author(TARGET_AUTHOR[current_collection])
             i = 1
+
+            # Todo -refactor to work like folder index
+            if meta_additional:
+                content_metadata.add_extras_key({"additional":meta_additional["extras"] })
+                content_metadata.add_private_key({"additional":meta_additional["private"] })
+                if "sourceId" in meta_additional:
+                    content_metadata.set_source_id_dict(meta_additional["sourceId"])
+                if "description" in meta_additional and  meta_additional["description"] != "":
+                    content_metadata.description(meta_additional["description"])
+
+                if "name" in meta_additional and  meta_additional["name"] != "":
+                    content_metadata.name(meta_additional["name"])
+
+                if "author" in meta_additional and  meta_additional["author"]:
+                    content_metadata.author(meta_additional["author"])
 
             out_file = common.add_to_pipeline(
                 wacz_path,
-                content_meta,
+                content_metadata.get_content(),
                 recorder_meta,
                 TARGET_PATH_TMP[current_collection],
                 TARGET_PATH[current_collection],
@@ -519,8 +484,8 @@ while True:
                     {"aid": aid, "id": crawl_config["id"], "name": crawl_name}
                 )
 
-    # If less then 3 crawls happening, and there is a queue, start the next item
-    while crawl_running_count < 3 and len(queuelist) > 0:
+    # If less then 5 crawls happening, and there is a queue, start the next item
+    while crawl_running_count < 5 and len(queuelist) > 0:
 
         r = queuelist.pop()
         aid = r["aid"]
