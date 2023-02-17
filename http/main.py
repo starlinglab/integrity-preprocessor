@@ -161,11 +161,11 @@ async def data_from_multipart(request):
                 + "Z"
             )
             meta_content["contentMetadata"]["private"][
-                "meta"
+                "b64AuthenticatedMetadata"
             ] = base64.standard_b64encode(multipart_data["meta_raw"].encode()).decode()
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
-            meta_content["contentMetadata"]["private"]["signature"] = multipart_data[
+            meta_content["contentMetadata"]["private"]["signatures"] = multipart_data[
                 "signature"
             ]
         elif part.name == "caption":
