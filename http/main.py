@@ -37,6 +37,7 @@ dotenv.load_dotenv()
 JWT_SECRET = os.environ["JWT_SECRET"]
 LOCAL_PATH = os.environ["LOCAL_PATH"]
 OUTPUT_PATH = os.environ["OUTPUT_PATH"]
+KEYS_FILE = os.environ.get("KEYS_FILE")
 
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8080"))
@@ -44,8 +45,24 @@ PORT = int(os.environ.get("PORT", "8080"))
 TMP_PATH = os.path.join(LOCAL_PATH, "tmp")
 ARCHIVE_PATH = os.path.join(LOCAL_PATH, "archive")
 
-os.makedirs(TMP_PATH, exist_ok=True)
-os.makedirs(ARCHIVE_PATH, exist_ok=True)
+
+KEYS = []
+
+
+def setup():
+    os.makedirs(TMP_PATH, exist_ok=True)
+    os.makedirs(ARCHIVE_PATH, exist_ok=True)
+
+    if KEYS_FILE:
+        with open(KEYS_FILE, "r") as f:
+            for line in f.readlines():
+                line = line.strip()
+                if line == "" or line.startswith("#"):
+                    continue
+                if len(line) == 66 and line[:2] in ["02", "03"]:
+                    KEYS.append(line)
+                else:
+                    raise Exception(f"Line is KEYS_FILE is not valid: {line}")
 
 
 class ClientError(Exception):
@@ -241,10 +258,18 @@ async def create(request):
         if not sc.validate():
             raise ClientError("Hashes or signatures did not validate")
 
-        # Add final part to meta_content
+        # Add validatedSignatures
         meta_content["contentMetadata"][
             "validatedSignatures"
         ] = sc.validated_sigs_json()
+
+        # Add device verification info if available
+        if sc.zion_key and sc.zion_key in KEYS:
+            for sig in meta_content["contentMetadata"]["validatedSignatures"]:
+                if "zion" in sig["algorithm"]:
+                    # Should only be one Zion sig, so this is the one
+                    sig["deviceInfo"] = "Public key is known"
+                    break
 
         asset_hash = sha256sum(asset_path)
         tmp_zip_path = os.path.join(LOCAL_PATH, asset_hash) + ".zip"
@@ -266,21 +291,17 @@ async def create(request):
             os.makedirs(final_dir, exist_ok=True)
 
         # Copy as .part then rename
+        out_path = os.path.join(
+            final_dir,
+            sha256sum(tmp_zip_path),
+        )
         zip_part_path = shutil.copy2(
             tmp_zip_path,
-            os.path.join(
-                final_dir,
-                sha256sum(tmp_zip_path),
-            )
-            + ".zip.part",
+            out_path + ".zip.part",
         )
         os.rename(
             zip_part_path,
-            os.path.join(
-                final_dir,
-                sha256sum(tmp_zip_path),
-            )
-            + ".zip",
+            out_path + ".zip",
         )
 
         # Move tmp zip to archive
@@ -301,4 +322,5 @@ app = web.Application(
 app.add_routes([web.post("/v1/assets/create", create)])
 
 if __name__ == "__main__":
+    setup()
     web.run_app(app, host=HOST, port=PORT)

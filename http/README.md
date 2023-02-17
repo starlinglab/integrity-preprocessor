@@ -2,6 +2,22 @@
 
 This folder contains the code for the HTTP preprocessor, a web server that ingests data - currently only from the Starling Capture app.
 
+## Run
+
+First, packages must be installed, either from requirements.txt or using pipenv. After that execute the file from the parent directory: `python3 http/main.py` or `pipenv run python3 http/main.py`.
+
+If using pipenv there is a shorcut: `pipenv run http`.
+
+To run in debug mode, set the environement variable `HTTP_DEBUG=1`. This will disable looking for external services as required for meta-recorder, and will log client HTTP errors.
+
+## Config
+
+The server is configured using environment variables in a `.env` file. An example file [env.example](env.example) is provided.
+
+The `KEYS_FILE` is path to a file of newline-separated Ethereum public keys in compressed bytes format, for example: `03aced43f9dddc120291f5cdf73580fbb592b5b21054ce61eb73cbaf98efcbe82e`. Only these keys are accepted as valid when doing cryptographic validation. If the variable is not specified then all keys will be accepted.
+
+Empty lines and lines starting with `#` will be ignored.
+
 ## API
 
 ### create
