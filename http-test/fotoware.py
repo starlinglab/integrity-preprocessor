@@ -444,6 +444,18 @@ def check_photo_for_c2pa(res,action):
     ts = get_utc_timestmap()
     THISC2PA = f"{integrity_path}/c2pa/{OID.upper()}-{ts}.jpg"
 
+    # reprocess - fire webhook
+    if action=="reprocess":
+        xmpfile = XMPFiles( file_path=tmp_file)
+        xmp = xmpfile.get_xmp()
+        XMP_NS_PHOTOSHOP = "http://ns.adobe.com/photoshop/1.0/"
+        if xmp.does_property_exist(XMP_NS_PHOTOSHOP,u'History'):
+            jpeg_data = { "data" : xmp.get_property(XMP_NS_PHOTOSHOP,u'History') }
+            jpeg_data["odid"] = OID
+            logging.info(f"check_photo_for_c2pa - Posting JPEG_DATA to Hedera")
+            requests.post("http://169.59.128.87:3000/jpeg-data",json=jpeg_data)
+            logging.info(f"check_photo_for_c2pa - Post complete")
+
     logging.info(f"check_photo_for_c2pa - Signing changes since {LASTC2PA}")
     target_path=f"{integrity_path}/tmp/{original_filename}"
     c2pa_fotoware_update(LASTC2PA,tmp_file,target_path,action,None)
@@ -471,6 +483,8 @@ async def fotoware_reprocess(request):
         res  = await request.json()
         threading.Thread(target=check_photo_for_c2pa,args=[res,"reprocess"]).start()
 
+
+        
 
         print(request)
         print(response)
