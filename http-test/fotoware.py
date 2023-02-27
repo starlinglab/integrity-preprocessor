@@ -323,9 +323,9 @@ def fotoware_uploaded_thread(res):
 
         content_metadata.add_private_key({"sig66": sig66_meta})
         signatures = s.validated_sigs_json()
-        content_metadata.validated_signature(s.validated_sigs_json())
-        logging.info(f"fotoware_uploaded_thread - XMP Signatures Saved")
+        content_metadata.validated_signature(s.validated_sigs_json())        
         set_xmp_signatures(tmp_file,signatures[0])
+        logging.info(f"fotoware_uploaded_thread - XMP Signatures Saved")
 
         # Metadata component
     else:
