@@ -322,7 +322,7 @@ def fotoware_uploaded_thread(res):
         sig66_meta["exif_uid"]=uid
         # set xmp UUID
         set_xmp_document_id(tmp_file,uid)
-        content_metadata.set_source("odid",uid)        
+        content_metadata.set_source_id("odid",uid)        
         logging.info(f"fotoware_uploaded_thread - XMP OID is set to UID of {uid}")
 
         content_metadata.add_private_key({"sig66": sig66_meta})
