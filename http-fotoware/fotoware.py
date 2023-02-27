@@ -11,6 +11,7 @@ import json
 from aiohttp import web
 import uuid
 import ftplib
+import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import validate
@@ -24,7 +25,9 @@ import exifread
 from libxmp import XMPFiles, consts # python-xmp-toolkit apt - exempi
 import dotenv
 
-
+class ClientError(Exception):
+    # Raised to trigger status code 400 responses
+    pass
 
 logging = common.logging
 logging.info("Started folder preprocessor")
@@ -33,6 +36,7 @@ logging.info("Started folder preprocessor")
 dotenv.load_dotenv()
 
 integrity_path="/mnt/integrity_store/starling/internal/reuters/test-collection"
+
 if not os.path.exists(f"{integrity_path}/tmp"):
     os.mkdir(f"{integrity_path}/tmp")
 if not os.path.exists(f"{integrity_path}/tmp/source"):
@@ -544,7 +548,7 @@ def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,file
 
     logging.info(f"c2pa_create_claim - {source_file} => {target_file}")
 
-    with open("/root/dev/integrity-preprocessor/http-test/template/c2pa_template.json") as c2pa_template_handle:
+    with open("/root/dev/integrity-preprocessor/http-fotoware/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
         c2pa_1["title"] = os.path.basename(filename)
         c2pa_1["claim_generator"] = "Sig66"
@@ -625,10 +629,10 @@ def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history
         source="photoshop"
 
     if source=="fotoware":
-        json_file = "/root/dev/integrity-preprocessor/http-test/template/c2pa_fotoware.json"
+        json_file = "/root/dev/integrity-preprocessor/http-fotoware/template/c2pa_fotoware.json"
         action = "c2pa.managed"
     if source=="photoshop":
-        json_file = "/root/dev/integrity-preprocessor/http-test/template/c2pa_photoshop.json"
+        json_file = "/root/dev/integrity-preprocessor/http-fotoware/template/c2pa_photoshop.json"
         action = "c2pa.edited"
 
     with open(json_file) as c2pa_template_handle:
