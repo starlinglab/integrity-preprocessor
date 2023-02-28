@@ -575,7 +575,8 @@ def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,file
 
         # Insert signatures
         c2pa_1["assertions"][m]["data"]["starling:signatures"] = []
-        for sig in content_metadata.get("validatedSignature", []):
+
+        for sig in content_metadata.get("validatedSignatures", []):
             x = {}
             if sig.get("provider"): x["starling:provider"] = sig.get("provider")
             if sig.get("algorithm"): x["starling:algorithm"] = sig.get("algorithm")
