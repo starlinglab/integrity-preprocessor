@@ -622,6 +622,9 @@ def c2pa_validate(source_file):
 def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history):
     logging.info(f"c2pa_fotoware_update - {lastC2PA} + {current_file} => {filename}")
 
+    tmp_source_path=f"{integrity_path}/tmp/source/{filename}"
+    shutil.copyfile(lastC2PA,tmp_source_path)
+
     json_file=""
     action="c2pa.managed"
 
@@ -653,7 +656,7 @@ def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history
                     f"{current_file}", 
                     "--manifest", f"{lastC2PA}.json", 
                     "--output" , f"{filename}", 
-                    "-p",f"{lastC2PA}"]
+                    "-p",f"{tmp_source_path}"]
                 , capture_output=True)
         args=[f"{p_c2patool}", f"{current_file}", "--manifest", f"{lastC2PA}.json", "--output" , f"{filename}", "-p",f"{lastC2PA}"]
         p = subprocess.run(args, capture_output=True)
