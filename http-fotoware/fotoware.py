@@ -622,7 +622,7 @@ def c2pa_validate(source_file):
 def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history):
     logging.info(f"c2pa_fotoware_update - {lastC2PA} + {current_file} => {filename}")
 
-    tmp_source_path=f"{integrity_path}/tmp/source/{filename}"
+    tmp_source_path=f"{integrity_path}/tmp/source/{os.path.basename(filename)}"
     shutil.copyfile(lastC2PA,tmp_source_path)
 
     json_file=""
