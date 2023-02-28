@@ -166,6 +166,7 @@ FOTOWARE_CLIENT_ID = os.environ.get("FOTOWARE_API_CLIENT_ID")
 FOTOWARE_SECRET = os.environ.get("FOTOWARE_API_SECRET")
 FOTOWARE_IP_ADDRESS = "52.166.150.145"
 FOTOWARE_FTP_PASSWORD = os.environ.get("FOTOWARE_FTP_PASSWORD")
+C2PA_PATH = os.environ.get("C2PA_PATH", "/dev/null")
 
 ### Fotoware Download 
 def fotoware_download(source_href,target):
@@ -371,7 +372,7 @@ def fotoware_uploaded_thread(res):
     while not os.path.exists(receipt_path):
         print(".",end = '')
         time.sleep(3) 
-    print(".")
+    print("+")
 
     logging.info(f"fotoware_uploaded_thread - Reading receipt file from {receipt_path}")
     f=open(receipt_path,"r")
@@ -490,8 +491,8 @@ async def fotoware_reprocess(request):
 
         
 
-        print(request)
-        print(response)
+#        print(request)
+#        print(response)
         return web.json_response(response, status=response.get("status_code"))
 
 async def fotoware_finalize(request):
@@ -504,8 +505,8 @@ async def fotoware_finalize(request):
         res  = await request.json()
         threading.Thread(target=check_photo_for_c2pa,args=[res,"finalize"]).start()
 
-        print(request)
-        print(response)
+#        print(request)
+#        print(response)
         return web.json_response(response, status=response.get("status_code"))
 
 
@@ -590,8 +591,7 @@ def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,file
 
         with open(f"{source_file}.json", "w") as man:
             json.dump(c2pa_1, man)
-        p_c2patool = "/root/.cargo/bin/c2patool"
-
+        p_c2patool = C2PA_PATH
         
         tmp_file="/tmp/" + filename  
         shutil.copyfile(source_file,tmp_file)
@@ -609,7 +609,7 @@ def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,file
 
 
 def c2pa_validate(source_file):
-    p_c2patool = "/root/.cargo/bin/c2patool"
+    p_c2patool = C2PA_PATH
     p = subprocess.run([f"{p_c2patool}", "--info", f"{source_file}"], capture_output=True)
     for line in p.stdout.decode("utf-8").split("\n"):
         if line=="Validated":
@@ -647,7 +647,7 @@ def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history
 
         with open(f"{lastC2PA}.json", "w") as man:
             json.dump(c2pa_1, man)
-        p_c2patool = "/root/.cargo/bin/c2patool"
+        p_c2patool = C2PA_PATH
         p = subprocess.run([f"{p_c2patool}", 
                     f"{current_file}", 
                     "--manifest", f"{lastC2PA}.json", 

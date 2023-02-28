@@ -24,3 +24,29 @@ This webhook will verify Sig66, archive the original photo through the pipeline.
 ### JWTs
 
 JWTs are not used but required as a place hold.
+
+### .env
+
+`JWT_SECRET` Required as a place holder  
+`OUTPUT_PATH` Path to the internal folder of starling integrity  
+`PORT` Port api will run on  
+`FOTOWARE_API_CLIENT_ID` `FOTOWARE_API_SECRET` Fotoweb OAUTH Credentials  
+`FOTOWARE_API_URL` URL to Fotowab  
+`SIG66_KEY` path to sig66 keys  
+`FOTOWARE_FTP_PASSWORD` FTP Password to fotoweb  
+
+### Sig66 Format 
+`preprocessor-sig66.json`
+
+Format
+
+```
+{
+  "devicename": {
+    "pubKey": " "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----""
+  },
+  "devicename2": { 
+    "pubKey": " "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----""
+  }
+}
+```
