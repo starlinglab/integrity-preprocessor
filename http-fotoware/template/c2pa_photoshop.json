@@ -1,6 +1,6 @@
 {
     "vendor": "photoshop_via_starling",
-    "claim_generator": "Photoshop_via_Starling",
+    "claim_generator": "Photoshop via Starling Lab",
     "alg": "es256",
     "private_key": "/root/.integrity/fotoware_cert.key",
     "sign_cert": "/root/.integrity/fotoware_cert.pem",
@@ -14,9 +14,9 @@
                 "@type": "CreativeWork",
                 "author": [
                     {
-                        "@type": "{{ contentMetadata.author.@type }}",
+                        "@type": "Organization",
                         "credential": [],
-                        "identifier": "Organization",
+                        "identifier": "https://www.adobe.com/ca/products/photoshop.html",
                         "name": "Photoshop"
                     }
                 ]

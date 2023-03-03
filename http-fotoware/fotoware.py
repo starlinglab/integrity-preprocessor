@@ -292,7 +292,7 @@ def fotoware_uploaded_thread(res):
     content_metadata = common.Metadata()
     content_metadata.set_mime_from_file(tmp_file)
     content_metadata.name(f"Authenticated Camera Photo")
-    content_metadata.description(f"Photo uploaded through FotoWare and authenticed with Sig66")
+    content_metadata.description(f"Photo uploaded through FotoWare and authenticated with Sig66")
 
     target_local_file = "" #C2PA Target
     target_filename = "error.jpg"
@@ -552,7 +552,7 @@ def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,file
     with open("/root/dev/integrity-preprocessor/http-fotoware/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
         c2pa_1["title"] = os.path.basename(filename)
-        c2pa_1["claim_generator"] = "Sig66"
+        c2pa_1["claim_generator"] = "Starling Integrity"
 
         # Insert authorship information
         m = _get_index_by_label(c2pa_1, "stds.schema-org.CreativeWork")

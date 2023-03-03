@@ -1,6 +1,6 @@
 {
-    "vendor": "fotoware_via_starling",
-    "claim_generator": "Fotoware_via_Starling",
+    "vendor": "fotoware_via_starling_lab",
+    "claim_generator": "FotoWare via Starling Lab",
     "alg": "es256",
     "private_key": "/root/.integrity/fotoware_cert.key",
     "sign_cert": "/root/.integrity/fotoware_cert.pem",
@@ -14,10 +14,10 @@
                 "@type": "CreativeWork",
                 "author": [
                     {
-                        "@type": "{{ contentMetadata.author.@type }}",
+                        "@type": "Organization",
                         "credential": [],
-                        "identifier": "Organization",
-                        "name": "Fotoware"
+                        "identifier": "https://www.fotoware.com",
+                        "name": "FotoWare"
                     }
                 ]
             }
