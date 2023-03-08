@@ -294,6 +294,14 @@ def fotoware_uploaded_thread(res):
     content_metadata.name(f"Authenticated Camera Photo")
     content_metadata.description(f"Photo uploaded through FotoWare and authenticated with Sig66")
 
+
+    reuters_author = {
+        "@type": "Organization",
+        "identifier": "https://www.reuters.com/",
+        "name": "Reuters"
+    }
+    content_metadata.author(reuters_author)
+
     target_local_file = "" #C2PA Target
     target_filename = "error.jpg"
 
