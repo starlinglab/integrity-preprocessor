@@ -549,7 +549,7 @@ def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,file
 
     logging.info(f"c2pa_create_claim - {source_file} => {target_file}")
 
-    with open("/root/dev/integrity-preprocessor/http-fotoware/template/c2pa_template.json") as c2pa_template_handle:
+    with open("/root/integrity-preprocessor/http-fotoware/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
         c2pa_1["title"] = os.path.basename(filename)
         c2pa_1["claim_generator"] = "Starling Integrity"
