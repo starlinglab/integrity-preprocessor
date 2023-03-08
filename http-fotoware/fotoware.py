@@ -633,10 +633,10 @@ def c2pa_fotoware_update(lastC2PA, current_file, filename,webhook_action,history
         source="photoshop"
 
     if source=="fotoware":
-        json_file = "/root/dev/integrity-preprocessor/http-fotoware/template/c2pa_fotoware.json"
+        json_file = "/root/integrity-preprocessor/http-fotoware/template/c2pa_fotoware.json"
         action = "c2pa.managed"
     if source=="photoshop":
-        json_file = "/root/dev/integrity-preprocessor/http-fotoware/template/c2pa_photoshop.json"
+        json_file = "/root/integrity-preprocessor/http-fotoware/template/c2pa_photoshop.json"
         action = "c2pa.edited"
 
     with open(json_file) as c2pa_template_handle:
