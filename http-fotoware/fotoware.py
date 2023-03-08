@@ -560,7 +560,7 @@ def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,file
     with open("/root/integrity-preprocessor/http-fotoware/template/c2pa_template.json") as c2pa_template_handle:
         c2pa_1= json.load(c2pa_template_handle)
         c2pa_1["title"] = os.path.basename(filename)
-        c2pa_1["claim_generator"] = "Starling Integrity"
+        c2pa_1["claim_generator"] = "Starling_Integrity"
 
         # Insert authorship information
         m = _get_index_by_label(c2pa_1, "stds.schema-org.CreativeWork")
