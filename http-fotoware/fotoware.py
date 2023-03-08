@@ -334,7 +334,7 @@ def fotoware_uploaded_thread(res):
         content_metadata.set_source_id("odid",uid)        
         logging.info(f"fotoware_uploaded_thread - XMP OID is set to UID of {uid}")
 
-        content_metadata.add_private_key({"sig66": sig66_meta})
+        content_metadata.add_private_key({"reuters_vs": sig66_meta})
         signatures = s.validated_sigs_json()
         content_metadata.validated_signature(s.validated_sigs_json())        
         set_xmp_signatures(tmp_file,signatures[0])
@@ -576,7 +576,7 @@ def c2pa_create_claim(source_file,target_file,content_metadata,receipt_json,file
 
         # Insert identifier
         m = _get_index_by_label(c2pa_1, "org.starlinglab.integrity")
-        content_id_starling_capture = content_metadata.get("private", {}).get("sig66", {}).get("exif_uid")
+        content_id_starling_capture = content_metadata.get("private", {}).get("reuters_v2", {}).get("exif_uid")
         if content_id_starling_capture:
             ## OID
             c2pa_1["assertions"][m]["data"]["starling:identifier"] = content_id_starling_capture
