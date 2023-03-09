@@ -2,6 +2,8 @@
 
 This folder contains the code for the HTTP FotoWare webhook pre and post processor. This is a web server that receives webhooks from FotoWeb and FotoPorter, verifies Root sig66 of Trust, and updates the data back into FotoWeb. It also keeps C2PA up to date.
 
+This is prototype code. It was used in conjunction with a ProvenDB database anchored on Hedera as a means of keeping track of changes internally.
+
 ## API
 
 ### FotoWeb Webhooks
@@ -13,7 +15,7 @@ These webhooks will check C2PA integrity and add a claim if it is changed. They 
 
 ### FotoPorter Webhooks
 
-This webhook will extract the XML Metadata from XMP and fire a webhook to the ProvenDB/Hedera component of the PoC
+This webhook will extract the XML Metadata from XMP that is added by Photoshop. It will then fire a webhook to the ProvenDB/Hedera component of the PoC
 - /v1/fotoware/reprocessasset
 
 This webhook will verify Sig66, archive the original photo through the pipeline. Once pipeline is complete it will add a C2PA claim as root of trust and action-archive information. Finally, it will upload the new file into FotoWeb

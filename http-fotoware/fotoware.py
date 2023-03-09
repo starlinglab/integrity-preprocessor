@@ -36,6 +36,7 @@ logging.info("Started folder preprocessor")
 dotenv.load_dotenv()
 
 integrity_path="/mnt/integrity_store/starling/internal/reuters/test-collection"
+http_webhook_xmp = "http://169.55.166.2:3000/jpeg-data"
 
 if not os.path.exists(f"{integrity_path}/tmp"):
     os.mkdir(f"{integrity_path}/tmp")
@@ -466,7 +467,7 @@ def check_photo_for_c2pa(res,action):
             jpeg_data = { "data" : xmp.get_property(XMP_NS_PHOTOSHOP,u'History') }
             jpeg_data["odid"] = OID
             logging.info(f"check_photo_for_c2pa - Posting JPEG_DATA to Hedera")
-            requests.post("http://169.59.128.87:3000/jpeg-data",json=jpeg_data)
+            requests.post(http_webhook_xmp,json=jpeg_data)
             logging.info(f"check_photo_for_c2pa - Post complete")
 
     logging.info(f"check_photo_for_c2pa - Signing changes since {LASTC2PA}")
