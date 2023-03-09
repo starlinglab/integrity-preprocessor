@@ -70,14 +70,11 @@ class Metadata:
         create_datetime = datetime.datetime.utcfromtimestamp(meta_date_created)
         self._content["dateCreated"] = create_datetime.isoformat() + "Z"
 
-    def set_source_id_dict(self,dict):
-        self._content["sourceId"] = dict;
+    def set_source_id_dict(self, dict):
+        self._content["sourceId"] = dict
 
-    def set_source_id(self,key,value):
-        self._content["sourceId"] = {
-            "key": key,
-            "value": value
-        }
+    def set_source_id(self, key, value):
+        self._content["sourceId"] = {"key": key, "value": value}
 
     def set_index(self, index_data):
         if "description" in index_data:

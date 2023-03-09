@@ -67,6 +67,8 @@ def error_handling_and_response():
         response["status"] = "error"
         if isinstance(err, ClientError):
             response["status_code"] = 400
+            if DEBUG:
+                print(f"Status 400: {err}")
         else:
             response["status_code"] = 500
             # Print error info for unexpected errors
@@ -159,11 +161,11 @@ async def data_from_multipart(request):
                 + "Z"
             )
             meta_content["contentMetadata"]["private"][
-                "meta"
+                "b64AuthenticatedMetadata"
             ] = base64.standard_b64encode(multipart_data["meta_raw"].encode()).decode()
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
-            meta_content["contentMetadata"]["private"]["signature"] = multipart_data[
+            meta_content["contentMetadata"]["private"]["signatures"] = multipart_data[
                 "signature"
             ]
         elif part.name == "caption":
@@ -238,6 +240,11 @@ async def create(request):
         sc = validate.StarlingCapture(asset_path, meta_raw, sigs)
         if not sc.validate():
             raise ClientError("Hashes or signatures did not validate")
+
+        # Add final part to meta_content
+        meta_content["contentMetadata"][
+            "validatedSignatures"
+        ] = sc.validated_sigs_json()
 
         asset_hash = sha256sum(asset_path)
         tmp_zip_path = os.path.join(LOCAL_PATH, asset_hash) + ".zip"
