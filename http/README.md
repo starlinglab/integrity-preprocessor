@@ -4,17 +4,15 @@ This folder contains the code for the HTTP preprocessor, a web server that inges
 
 ## Run
 
-First, packages must be installed, either from requirements.txt or using pipenv. After that execute the file from the parent directory: `python3 http/main.py` or `pipenv run python3 http/main.py`.
+First, packages must be installed using pipenv. After that execute the file from the parent directory: `pipenv run http`. This is a pipenv shortcut, equivalent to `pipenv run python3 http/main.py`
 
-If using pipenv there is a shorcut: `pipenv run http`.
-
-To run in debug mode, set the environement variable `HTTP_DEBUG=1`. This will disable looking for external services as required for meta-recorder, and will log client HTTP errors.
+To run in debug mode, set the environment variable `HTTP_DEBUG=1`. This will disable looking for external services (used for meta-recorder), and will log client HTTP errors.
 
 ## Config
 
 The server is configured using environment variables in a `.env` file. An example file [env.example](env.example) is provided.
 
-The `KEYS_FILE` is path to a file of newline-separated Ethereum public keys in compressed bytes format, for example: `03aced43f9dddc120291f5cdf73580fbb592b5b21054ce61eb73cbaf98efcbe82e`. Keys that appear in this file will get an extra field in the metadata. All keys will still be accepted.
+The `KEYS_FILE` is path to a file of newline-separated Ethereum public keys in compressed bytes format, for example: `03aced43f9dddc120291f5cdf73580fbb592b5b21054ce61eb73cbaf98efcbe82e`. Keys that appear in this file will get an extra field in the metadata, indicating the key was known. All keys will still be accepted by the server.
 
 Empty lines and lines starting with `#` will be ignored.
 
