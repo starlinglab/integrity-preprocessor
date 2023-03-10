@@ -1,5 +1,6 @@
 *.pcap
 **/.env
+keys.txt
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,linux,windows,visualstudiocode,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,linux,windows,visualstudiocode,macos
