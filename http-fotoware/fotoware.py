@@ -335,7 +335,7 @@ def fotoware_uploaded_thread(res):
         content_metadata.set_source_id("odid",uid)        
         logging.info(f"fotoware_uploaded_thread - XMP OID is set to UID of {uid}")
 
-        content_metadata.add_private_key({"reuters_vs": sig66_meta})
+        content_metadata.add_private_key({"reuters_v2": sig66_meta})
         signatures = s.validated_sigs_json()
         content_metadata.validated_signature(s.validated_sigs_json())        
         set_xmp_signatures(tmp_file,signatures[0])
