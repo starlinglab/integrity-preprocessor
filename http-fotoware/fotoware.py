@@ -35,7 +35,7 @@ logging.info("Started folder preprocessor")
 
 dotenv.load_dotenv()
 
-integrity_path="/mnt/integrity_store/starling/internal/reuters/test-collection"
+integrity_path="/mnt/integrity_store/starling/internal/reuters/reuters-v2"
 http_webhook_xmp = "http://169.55.166.2:3000/jpeg-data"
 
 if not os.path.exists(f"{integrity_path}/tmp"):
