@@ -232,7 +232,46 @@ async def write_file(part):
 
     return tmp_file
 
+#TODO: should be read from a config file
+ROOT_PATH="/mnt/integrity_store"
+async def metadata_append_browsertrix(data,jwt):
 
+    #print(jwt)
+
+    collection = data["collection"]
+    organization = data["organization"]
+    crawl_id = data["crawl_id"]
+    meta_data = data["meta_data"]
+
+    TARGET_ROOT_PATH = f"{ROOT_PATH}/starling/internal/{organization}/{collection}/"
+    metaPath = TARGET_ROOT_PATH + "preprocessor_metadata"
+
+    if not os.path.exists(metaPath):
+        os.makedirs(metaPath)
+
+    metaFilename = f"{metaPath}/{crawl_id}.json"
+    text_file = open(metaFilename, "w")
+    text_file.write(json.dumps(meta_data))
+    text_file.close()
+    print(f"Writing additional metadata to {metaPath}/{crawl_id}.json")
+
+
+async def metadata_append(request):
+    with error_handling_and_response() as response:
+        jwt = request["jwt_payload"]
+        #todo add security
+
+        data = (await request.content.read()).decode("UTF-8")
+        datajson = json.loads(data)
+
+        if datajson["preprocessor"]=="browsertrix":
+            await metadata_append_browsertrix(datajson,jwt)
+        else:
+            raise Exception(f"Unsupported preprocessor")
+
+        return web.json_response(response, status=response.get("status_code"))
+
+        
 async def create(request):
     with error_handling_and_response() as response:
         jwt = request["jwt_payload"]
@@ -320,6 +359,7 @@ app = web.Application(
     ]
 )
 app.add_routes([web.post("/v1/assets/create", create)])
+app.add_routes([web.post("/v1/assets/metadata/append", metadata_append)])
 
 if __name__ == "__main__":
     setup()
