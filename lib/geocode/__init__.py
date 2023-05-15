@@ -11,7 +11,7 @@ def reverse_geocode(lat, lon):
         lat, long: latitude and longitude to reverse geocode, as floats
 
     Returns:
-        geolocation JSON
+        geolocation JSON or None if address doesn't exist
 
     """
     # TODO: Add some kind of throttling and/or caching to prevent us from sending more than 1 req/sec.
@@ -20,6 +20,9 @@ def reverse_geocode(lat, lon):
         raise Exception(
             f"Reverse geocode lookup for ({lat}, {lon}) failed with: {response.status}"
         )
+
+    if response.status == "ERROR - No results found":
+        return None
     return _json_to_address(response.json)
 
 

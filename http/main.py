@@ -206,11 +206,11 @@ async def data_from_multipart(request):
                 geolocation = {}
             else:
                 # Add reverse-geocode keys
-                geolocation.update(
-                    geocode.reverse_geocode(
-                        geolocation["latitude"], geolocation["longitude"]
-                    )
+                address = geocode.reverse_geocode(
+                    geolocation["latitude"], geolocation["longitude"]
                 )
+                if address is not None:
+                    geolocation.update(address)
 
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
