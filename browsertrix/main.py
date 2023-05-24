@@ -411,12 +411,8 @@ while True:
                 meta_crawl = get_crawl_config(server,crawl["cid"], aid)
 
                 # Variable also used later on to write final SHA256 ID
-                meta_additional_filename = (
-                    TARGET_ROOT_PATH[current_collection]
-                    + "/preprocessor_metadata/"
-                    + crawl["cid"]
-                    + ".json"
-                )
+                meta_additional_filename = f"{TARGET_ROOT_PATH[current_collection]}/preprocessor_metadata/{crawl['cid']}.json"
+
                 meta_additional = None
                 if os.path.exists(meta_additional_filename):
                     f = open(meta_additional_filename)
