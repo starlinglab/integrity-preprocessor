@@ -1,10 +1,21 @@
 {
   "collections":{
     "00000000-0000-0000-0000-0000000000000": {
-      "target_path":"/mnt/integrity_store/starling/internal/starling-lab-test/test-web-archive-collection2/"
+      "target_path":"/mnt/integrity_store/starling/internal/starling-lab-test/test-web-archive-collection2/",
+      "collectionID": "test-web-archive-collection2",
+      "organizationID": "starling-lab-test",
+      "server": "browsertrix.example.org"
     },
     "11111111-0000-0000-0000-0000000000000": {
-      "target_path":"/mnt/integrity_store/starling/internal/starling-lab-test/test-web-archive-collection3/"
+      "target_path":"/mnt/integrity_store/starling/internal/starling-lab-test/test-web-archive-collection3/",
+      "collectionID": "test-web-archive-collection3",
+      "organizationID": "starling-lab-test",
+      "server": "browsertrix.example.org",
+      "author": {
+        "@type": "Organization",
+        "identifier": "https://example.org ",
+        "name": "Example Org"
+      },
     }
   }
 }
