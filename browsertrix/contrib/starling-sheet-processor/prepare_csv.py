@@ -12,7 +12,7 @@ endding_row=99999
 header_row=1
 
 USERNAME = "tools@starlinglab.org"
-PASSWORD = "TLFUQz9nWCEAkUP"
+PASSWORD = "<PASSWORD>"
 BROWSERTRIX_URL = "https://org1.browsertrix.stg.starlinglab.org"
 ORG = "demo"
 COLLECTION = "starling-lab"
