@@ -278,10 +278,9 @@ while True:
     i = 1
     for server in SERVER_CREDENTIALS:
         BROWSERTRIX_URL = f"https://{server}"
-        print(f"Starting {BROWSERTRIX_URL}/api/orgs")
+        logging.info(f"Starting {BROWSERTRIX_URL}/api/orgs")
         r = requests.get(f"{BROWSERTRIX_URL}/api/orgs", headers=headers(server))
         if r.status_code != 200:
-            print(r.json())
             raise Exception(f"GET of {server} /api/orgs failed")
 
         crawl_running_count = 0
@@ -310,7 +309,6 @@ while True:
             crawls = r.json()["items"]
 
             # Count the number of currently running crawls
-            print(crawls)
             for crawl in crawls:
                 if crawl["state"] == "running":
                     crawl_running_count = crawl_running_count + 1
