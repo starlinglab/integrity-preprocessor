@@ -1,8 +1,8 @@
 # Integrity Preprocessors
 
-The Intergrity Preprocessors are a set of tools that prepare assets for injestion by integrity-backend. The preprocessor also records hashes of running programs and generates data that will be used in the meta-recorder metadata content.
+The Intergrity Preprocessors are a set of services that prepare assets for injestion by integrity-backend. The preprocessor also validates assets, records hashes of running programs and generates data that will be used in the meta-recorder metadata content.
 
-## Browsertrix
+## Browsertrix preprocessor
 
 This service runs waits for completed crawls in pre-defined Browsertrix archives, downloads them from Browsertrix and prepeares the integrity-backend bundle. It uses a wacz/warc processor to extract meta data about the file.
 
