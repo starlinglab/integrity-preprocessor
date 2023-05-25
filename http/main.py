@@ -5,11 +5,9 @@
 # https://github.com/starlinglab/integrity-backend/blob/cd6554f0b4685973382f25305a5d4f90ef942d58/integritybackend/multipart.py
 
 import os
-import shutil
 import sys
 from contextlib import contextmanager
 import traceback
-import zipfile
 from datetime import datetime, timezone
 import base64
 import json
@@ -18,26 +16,18 @@ import logging
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
 import common
+import validate
+
 
 from aiohttp import web
 from aiohttp_jwt import JWTMiddleware
 import dotenv
 
 logging = common.logging
+sha256sum = validate.sha256sum
 
 
 DEBUG = os.environ.get("HTTP_DEBUG") == "1"
-
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
-import validate
-
-if not DEBUG:
-    import integrity_recorder_id
-
-sha256sum = validate.sha256sum
-
-if not DEBUG:
-    integrity_recorder_id.build_recorder_id_json()
 
 dotenv.load_dotenv()
 
@@ -170,9 +160,7 @@ async def data_from_multipart(request):
         elif part.name == "meta":
             multipart_data["meta_raw"] = await part.text()
             multipart_data["meta"] = json.loads(multipart_data["meta_raw"])
-            meta_content["mime"] = multipart_data["meta"]["proof"][
-                "mimeType"
-            ]
+            meta_content["mime"] = multipart_data["meta"]["proof"]["mimeType"]
             meta_content["dateCreated"] = (
                 datetime.fromtimestamp(
                     multipart_data["meta"]["proof"]["timestamp"] / 1000,
@@ -187,15 +175,11 @@ async def data_from_multipart(request):
             ] = base64.standard_b64encode(multipart_data["meta_raw"].encode()).decode()
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
-            meta_content["private"]["signatures"] = multipart_data[
-                "signature"
-            ]
+            meta_content["private"]["signatures"] = multipart_data["signature"]
         elif part.name == "caption":
             meta_content["extras"]["caption"] = await part.text()
         elif part.name == "target_provider":
-            meta_content["private"][
-                "targetProvider"
-            ] = await part.text()
+            meta_content["private"]["targetProvider"] = await part.text()
         elif part.name == "tag":
             if DEBUG:
                 # No meta_recorder data available
@@ -237,11 +221,13 @@ async def write_file(part):
 
     return tmp_file
 
-#TODO: should be read from a config file
-ROOT_PATH="/mnt/integrity_store"
-async def metadata_append_browsertrix(data,jwt):
 
-    #print(jwt)
+# TODO: should be read from a config file
+ROOT_PATH = "/mnt/integrity_store"
+
+
+async def metadata_append_browsertrix(data, jwt):
+    # print(jwt)
 
     collection = data["collection"]
     organization = data["organization"]
@@ -264,19 +250,19 @@ async def metadata_append_browsertrix(data,jwt):
 async def metadata_append(request):
     with error_handling_and_response() as response:
         jwt = request["jwt_payload"]
-        #todo add security
+        # todo add security
 
         data = (await request.content.read()).decode("UTF-8")
         datajson = json.loads(data)
 
-        if datajson["preprocessor"]=="browsertrix":
-            await metadata_append_browsertrix(datajson,jwt)
+        if datajson["preprocessor"] == "browsertrix":
+            await metadata_append_browsertrix(datajson, jwt)
         else:
             raise Exception(f"Unsupported preprocessor")
 
         return web.json_response(response, status=response.get("status_code"))
 
-        
+
 async def create(request):
     with error_handling_and_response() as response:
         jwt = request["jwt_payload"]
@@ -305,9 +291,7 @@ async def create(request):
             raise ClientError("Hashes or signatures did not validate")
 
         # Add validatedSignatures
-        meta_content[
-            "validatedSignatures"
-        ] = sc.validated_sigs_json()
+        meta_content["validatedSignatures"] = sc.validated_sigs_json()
 
         # Add device verification info if available
         if sc.zion_key and sc.zion_key in KEYS:
@@ -326,8 +310,8 @@ async def create(request):
         if DEBUG:
             os.makedirs(final_dir, exist_ok=True)
 
-
         os.makedirs(f"{final_dir}/tmp/", exist_ok=True)
+        os.makedirs(f"{final_dir}/input/", exist_ok=True)
         out_file = common.add_to_pipeline(
             asset_path,
             meta_content,
