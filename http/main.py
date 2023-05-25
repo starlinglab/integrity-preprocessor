@@ -146,14 +146,12 @@ async def data_from_multipart(request):
 
     # https://github.com/starlinglab/integrity-schema/blob/076fb516b3389cc536e8c21eef2e4df804adb3f5/integrity-backend/input-starling-capture-examples/3e11cc57daf3bad8375935cad4878123acc8d769551ff90f1b1bb0dc597-meta-content.json
     meta_content = {
-        "contentMetadata": {
-            "name": "Authenticated content",
-            "description": "Content captured with Starling Capture application",
-            "author": jwt.get("author"),
-            "extras": {},
-            "private": {
-                "providerToken": jwt,
-            },
+        "name": "Authenticated content",
+        "description": "Content captured with Starling Capture application",
+        "author": jwt.get("author"),
+        "extras": {},
+        "private": {
+            "providerToken": jwt,
         },
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
@@ -172,10 +170,10 @@ async def data_from_multipart(request):
         elif part.name == "meta":
             multipart_data["meta_raw"] = await part.text()
             multipart_data["meta"] = json.loads(multipart_data["meta_raw"])
-            meta_content["contentMetadata"]["mime"] = multipart_data["meta"]["proof"][
+            meta_content["mime"] = multipart_data["meta"]["proof"][
                 "mimeType"
             ]
-            meta_content["contentMetadata"]["dateCreated"] = (
+            meta_content["dateCreated"] = (
                 datetime.fromtimestamp(
                     multipart_data["meta"]["proof"]["timestamp"] / 1000,
                     timezone.utc,
@@ -184,18 +182,18 @@ async def data_from_multipart(request):
                 .isoformat()
                 + "Z"
             )
-            meta_content["contentMetadata"]["private"][
+            meta_content["private"][
                 "b64AuthenticatedMetadata"
             ] = base64.standard_b64encode(multipart_data["meta_raw"].encode()).decode()
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
-            meta_content["contentMetadata"]["private"]["signatures"] = multipart_data[
+            meta_content["private"]["signatures"] = multipart_data[
                 "signature"
             ]
         elif part.name == "caption":
-            meta_content["contentMetadata"]["extras"]["caption"] = await part.text()
+            meta_content["extras"]["caption"] = await part.text()
         elif part.name == "target_provider":
-            meta_content["contentMetadata"]["private"][
+            meta_content["private"][
                 "targetProvider"
             ] = await part.text()
         elif part.name == "tag":
@@ -307,13 +305,13 @@ async def create(request):
             raise ClientError("Hashes or signatures did not validate")
 
         # Add validatedSignatures
-        meta_content["contentMetadata"][
+        meta_content[
             "validatedSignatures"
         ] = sc.validated_sigs_json()
 
         # Add device verification info if available
         if sc.zion_key and sc.zion_key in KEYS:
-            for sig in meta_content["contentMetadata"]["validatedSignatures"]:
+            for sig in meta_content["validatedSignatures"]:
                 if "zion" in sig["algorithm"]:
                     # Should only be one Zion sig, so this is the one
                     sig["deviceInfo"] = "Public key is known"
@@ -337,7 +335,7 @@ async def create(request):
             f"{final_dir}/tmp/",
             f"{final_dir}/input/",
         )
-        logging.info(f"Added file to popeline {out_file}")
+        logging.info(f"Added file to pipeline {out_file}")
 
     return web.json_response(response, status=response.get("status_code"))
 
