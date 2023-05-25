@@ -87,7 +87,7 @@ def process_starling_csv(filename,starting_row,endding_row,header_row):
                 result.append(r)
     return result
 
-def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD):
+def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD, RUN):
     target_urls = [meta_data["path"]]
     target_urls_seeds=[]
     for t in target_urls:
@@ -119,7 +119,7 @@ def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD):
         "crawlTimeout": 60 * 60 * 24,
         "scale": 1,
         "schedule": "",
-        "runNow": False,
+        "runNow": RUN,
         "config": {
             "seeds": target_urls_seeds,
             "scopeType": "page",
@@ -131,7 +131,7 @@ def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD):
         },
     }
     URL = f"{BROWSERTRIX_URL}/api/orgs/" + AID + "/crawlconfigs/"
-    print(URL) #json.dumps(config,indent=2))
+
 
     r = requests.post(URL, json=config, headers=headers)
     res = r.json()
@@ -141,6 +141,7 @@ def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD):
         raise Exception("Failed to create template")
         
     CID = res["added"]
+    print(f"Added {itemID} -  {CID}")
     return CID
 
 def submit_metadata(ORG,COLLECTION,CID,meta_data, API_URL,JWT):
