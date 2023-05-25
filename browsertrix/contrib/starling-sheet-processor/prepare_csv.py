@@ -4,8 +4,8 @@ import os
 import json
 import starling_csv
 
-JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmdhbml6YXRpb25faWQiOiJoeXBoYWNvb3AiLCJhdXRob3IiOnsidHlwZSI6IlBlcnNvbiIsImlkZW50aWZpZXIiOiJodHRwczovL2h5cGhhLmNvb3AiLCJuYW1lIjoiQmVuZWRpY3QgTGF1In0sInR3aXR0ZXIiOnsidHlwZSI6Ik9yZ2FuaXphdGlvbiIsImlkZW50aWZpZXIiOiJodHRwczovL2h5cGhhLmNvb3AiLCJuYW1lIjoiSHlwaGFDb29wIn0sImNvcHlyaWdodCI6IkNvcHlyaWdodCAoQykgMjAyMSBIeXBoYSBXb3JrZXIgQ28tb3BlcmF0aXZlLiBBbGwgUmlnaHRzIFJlc2VydmVkLiJ9.gqRi6ZJ54c1g7sPQAfcj5Je1WlRCPSZ1c0aY-3X38jE"
-API_URL="https://api.integrity-dev.stg.starlinglab.org"
+JWT="xxxxxxxxxxxxxxxx"
+API_URL="https://api.integrity.stg.starlinglab.org"
 USERNAME = "tools@starlinglab.org"
 PASSWORD = "<PASSWORD>"
 BROWSERTRIX_URL = "https://org1.browsertrix.stg.starlinglab.org"
