@@ -278,10 +278,9 @@ while True:
     i = 1
     for server in SERVER_CREDENTIALS:
         BROWSERTRIX_URL = f"https://{server}"
-        print(f"Starting {BROWSERTRIX_URL}/api/orgs")
+        logging.info(f"Starting {BROWSERTRIX_URL}/api/orgs")
         r = requests.get(f"{BROWSERTRIX_URL}/api/orgs", headers=headers(server))
         if r.status_code != 200:
-            print(r.json())
             raise Exception(f"GET of {server} /api/orgs failed")
 
         crawl_running_count = 0
@@ -310,7 +309,6 @@ while True:
             crawls = r.json()["items"]
 
             # Count the number of currently running crawls
-            print(crawls)
             for crawl in crawls:
                 if crawl["state"] == "running":
                     crawl_running_count = crawl_running_count + 1
@@ -411,12 +409,8 @@ while True:
                 meta_crawl = get_crawl_config(server,crawl["cid"], aid)
 
                 # Variable also used later on to write final SHA256 ID
-                meta_additional_filename = (
-                    TARGET_ROOT_PATH[current_collection]
-                    + "/preprocessor_metadata/"
-                    + crawl["cid"]
-                    + ".json"
-                )
+
+                meta_additional_filename = f"{TARGET_ROOT_PATH[current_collection]}/preprocessor_metadata/{crawl['cid']}.json"
                 meta_additional = None
                 if os.path.exists(meta_additional_filename):
                     f = open(meta_additional_filename)
@@ -478,49 +472,4 @@ while True:
             data[aid] = {"last_check": new_last_check, "crawls": new_crawls}
             write_data(data)
 
-    """
-    # Process crawl queue
-    i = 1
-
-    r = requests.get(f"{BROWSERTRIX_URL}/api/archives", headers=headers())
-    if r.status_code != 200:
-        raise Exception(f"GET of api/archives Failed")
-
-    queuelist = []
-    for archive in r.json()["archives"]:
-
-        aid = archive["id"]
-        r = requests.get(
-            f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs", headers=headers()
-        )
-        if r.status_code != 200:
-            raise Exception(f"GET of {aid}/crawlconfigs Failed")
-
-        # Check if crawl is to be queued and add it to array
-        for crawl_config in r.json()["crawlConfigs"]:
-            crawl_name = crawl_config["name"]
-            if crawl_name[:3] == "_Q_":
-                queuelist.append(
-                    {"aid": aid, "id": crawl_config["id"], "name": crawl_name}
-                )
-
-    # If less then 5 crawls happening, and there is a queue, start the next item
-    while crawl_running_count < 5 and len(queuelist) > 0:
-
-        r = queuelist.pop()
-        aid = r["aid"]
-        cid = r["id"]
-        name = r["name"][3:]
-
-        r = requests.post(
-            f"{BROWSERTRIX_URL}/api/archives/{aid}/crawlconfigs/{cid}/run",
-            headers=headers(),
-        )
-        crawl_running_count = crawl_running_count + 1
-        logging.info(f"Started crawl of {aid}/{cid}")
-        crawlid = r.json()["started"]
-        new_name = "_R_" + name
-        data = {"name": new_name}
-        r = update_crawl_config(cid, aid, data)
-    """
     time.sleep(LOOP_INTERVAL)
