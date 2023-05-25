@@ -48,3 +48,30 @@ Response codes follow standard HTTP conventions:
 ### JWTs
 
 You can create a JWT on https://jwt.io/. Make sure to use the same secret you are using in your development server (the value of `JWT_SECRET`). The algorithm should be `HS256`.
+
+
+
+### Metadata
+/v1/assets/metadata/append
+
+
+asdfgytr3d2s4re23qe3q2w
+
+
+```json
+{
+  "preprocessor": "browsertrix",
+  "collection": "collection-name",
+  "organization": "organization-name",
+  "crawl_id": "xxx-xxx-xxx-xxx-xxx-xxx",
+  "meta_data": {}
+}
+```
+
+JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmdhbml6YXRpb25faWQiOiJoeXBoYWNvb3AiLCJhdXRob3IiOnsidHlwZSI6IlBlcnNvbiIsImlkZW50aWZpZXIiOiJodHRwczovL2h5cGhhLmNvb3AiLCJuYW1lIjoiQmVuZWRpY3QgTGF1In0sInR3aXR0ZXIiOnsidHlwZSI6Ik9yZ2FuaXphdGlvbiIsImlkZW50aWZpZXIiOiJodHRwczovL2h5cGhhLmNvb3AiLCJuYW1lIjoiSHlwaGFDb29wIn0sImNvcHlyaWdodCI6IkNvcHlyaWdodCAoQykgMjAyMSBIeXBoYSBXb3JrZXIgQ28tb3BlcmF0aXZlLiBBbGwgUmlnaHRzIFJlc2VydmVkLiJ9.gqRi6ZJ54c1g7sPQAfcj5Je1WlRCPSZ1c0aY-3X38jE"
+
+curl -X POST http://localhost:8079/v1/assets/metadata/append \
+     -H "Authorization: Bearer ${JWT}" \
+     -D "${DATA}"
+
+
