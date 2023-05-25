@@ -23,6 +23,8 @@ from aiohttp import web
 from aiohttp_jwt import JWTMiddleware
 import dotenv
 
+import integrity_recorder_id
+
 logging = common.logging
 sha256sum = validate.sha256sum
 
