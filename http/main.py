@@ -14,10 +14,17 @@ from datetime import datetime, timezone
 import base64
 import json
 import time
+import logging
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+import common
 
 from aiohttp import web
 from aiohttp_jwt import JWTMiddleware
 import dotenv
+
+logging = common.logging
+
 
 DEBUG = os.environ.get("HTTP_DEBUG") == "1"
 
@@ -85,11 +92,11 @@ def error_handling_and_response():
         if isinstance(err, ClientError):
             response["status_code"] = 400
             if DEBUG:
-                print(f"Status 400: {err}")
+                logging.info(f"Status 400: {err}")
         else:
             response["status_code"] = 500
             # Print error info for unexpected errors
-            print(traceback.format_exc())
+            logging.info(traceback.format_exc())
 
 
 global_meta_recorder = None
@@ -205,7 +212,7 @@ async def data_from_multipart(request):
             info = next((i for i in service["info"] if i["type"] == "external"))
             info["values"]["name"] = await part.text()
         else:
-            print("Ignoring multipart part %s", part.name)
+            logging.info("Ignoring multipart part %s", part.name)
 
     return multipart_data, meta_content, meta_recorder
 
@@ -253,7 +260,7 @@ async def metadata_append_browsertrix(data,jwt):
     text_file = open(metaFilename, "w")
     text_file.write(json.dumps(meta_data))
     text_file.close()
-    print(f"Writing additional metadata to {metaPath}/{crawl_id}.json")
+    logging.info(f"Writing additional metadata to {metaPath}/{crawl_id}.json")
 
 
 async def metadata_append(request):
@@ -284,6 +291,8 @@ async def create(request):
         sigs = data.get("signature")
         asset_path = data.get("asset_fullpath")
 
+        logging.info(f"create called: {asset_path}")
+
         # Make sure all sections actually existed in multipart
         if meta_raw is None:
             raise ClientError("No metadata uploaded")
@@ -310,41 +319,25 @@ async def create(request):
                     sig["deviceInfo"] = "Public key is known"
                     break
 
-        asset_hash = sha256sum(asset_path)
-        tmp_zip_path = os.path.join(LOCAL_PATH, asset_hash) + ".zip"
-
-        # Create zip
-        with zipfile.ZipFile(tmp_zip_path, "w") as zipf:
-            zipf.writestr(f"{asset_hash}-meta-content.json", json.dumps(meta_content))
-            zipf.writestr(f"{asset_hash}-meta-recorder.json", json.dumps(meta_recorder))
-            zipf.write(asset_path, asset_hash + os.path.splitext(asset_path)[1])
-
-        # Move zip to input dir, named as the hash of itself
-
         final_dir = os.path.join(
             OUTPUT_PATH,
             jwt["organization_id"],
             jwt["collection_id"],
         )
+
         if DEBUG:
             os.makedirs(final_dir, exist_ok=True)
 
-        # Copy as .part then rename
-        out_path = os.path.join(
-            final_dir,
-            sha256sum(tmp_zip_path),
-        )
-        zip_part_path = shutil.copy2(
-            tmp_zip_path,
-            out_path + ".zip.part",
-        )
-        os.rename(
-            zip_part_path,
-            out_path + ".zip",
-        )
 
-        # Move tmp zip to archive
-        os.rename(tmp_zip_path, os.path.join(ARCHIVE_PATH, asset_hash) + ".zip")
+        os.makedirs(f"{final_dir}/tmp/", exist_ok=True)
+        out_file = common.add_to_pipeline(
+            asset_path,
+            meta_content,
+            meta_recorder,
+            f"{final_dir}/tmp/",
+            f"{final_dir}/input/",
+        )
+        logging.info(f"Added file to popeline {out_file}")
 
     return web.json_response(response, status=response.get("status_code"))
 
