@@ -45,6 +45,9 @@ class StarlingCapture(Validate):
         self.json = []
         self.provider = "starling-capture"
 
+        # Set after validating Zion sig
+        self.zion_key = None
+
     def name(self) -> str:
         return "starling-capture"
 
@@ -229,8 +232,7 @@ class StarlingCapture(Validate):
             meta_raw, signature["publicKey"], signature["signature"]
         )
 
-    @staticmethod
-    def _validate_zion_classic(meta_hash_bytes: bytes, signature: dict) -> bool:
+    def _validate_zion_classic(self, meta_hash_bytes: bytes, signature: dict) -> bool:
         message = encode_defunct(meta_hash_bytes)
         try:
             # pylint: disable=no-value-for-parameter
@@ -240,9 +242,8 @@ class StarlingCapture(Validate):
         except BadSignature:
             return False
         # Signer's Ethereum address
-        pk = PublicKey.from_compressed_bytes(
-            bytes.fromhex(signature["publicKey"][-66:])
-        )
+        self.zion_key = signature["publicKey"][-66:]
+        pk = PublicKey.from_compressed_bytes(bytes.fromhex(self.zion_key))
         return addr == pk.to_checksum_address()
 
     @staticmethod
@@ -256,8 +257,7 @@ class StarlingCapture(Validate):
             meta_raw, key_hex, signature["signature"]
         )
 
-    @staticmethod
-    def _validate_zion(meta_hash_hex: str, signature: dict) -> bool:
+    def _validate_zion(self, meta_hash_hex: str, signature: dict) -> bool:
         message = encode_defunct(text=meta_hash_hex)
         try:
             # pylint: disable=no-value-for-parameter
@@ -267,13 +267,11 @@ class StarlingCapture(Validate):
         except BadSignature:
             return False
         # Signer's Ethereum address
-        pk = PublicKey.from_compressed_bytes(
-            bytes.fromhex(signature["publicKey"][-66:])
-        )
+        self.zion_key = signature["publicKey"][-66:]
+        pk = PublicKey.from_compressed_bytes(bytes.fromhex(self.zion_key))
         return addr == pk.to_checksum_address()
 
-    @staticmethod
-    def _validate_zion_session(meta_raw: str, signature: dict) -> bool:
+    def _validate_zion_session(self, meta_raw: str, signature: dict) -> bool:
         lines = signature["publicKey"].split("\n")
         session_public_key = lines[1]
         zion_session_sig = lines[4]
@@ -294,7 +292,6 @@ class StarlingCapture(Validate):
         except BadSignature:
             return False
         # Signer's Ethereum address
-        pk = PublicKey.from_compressed_bytes(
-            bytes.fromhex(signature["publicKey"][-66:])
-        )
+        self.zion_key = signature["publicKey"][-66:]
+        pk = PublicKey.from_compressed_bytes(bytes.fromhex(self.zion_key))
         return addr == pk.to_checksum_address()

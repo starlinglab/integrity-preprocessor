@@ -14,7 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../")
 import validate
 import integrity_recorder_id
 
-integrity_recorder_id.build_recorder_id_json()
+if os.environ.get("HTTP_DEBUG") != "1":
+    integrity_recorder_id.build_recorder_id_json()
 
 from  .metadata import Metadata
 

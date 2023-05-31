@@ -8,6 +8,7 @@ export JWT_SECRET="test"
 export LOCAL_PATH="/tmp/integrity-preprocessor/http/local"
 export OUTPUT_PATH="/tmp/integrity-preprocessor/http/output"
 export PORT=58694 # Random
+export KEYS_FILE=
 
 # Run server in background
 if [ "$PIPENV_ACTIVE" == "1" ]; then

@@ -2,6 +2,20 @@
 
 This folder contains the code for the HTTP preprocessor, a web server that ingests data - currently only from the Starling Capture app.
 
+## Run
+
+First, packages must be installed using pipenv. After that execute the file from the parent directory: `pipenv run http`. This is a pipenv shortcut, equivalent to `pipenv run python3 http/main.py`
+
+To run in debug mode, set the environment variable `HTTP_DEBUG=1`. This will disable looking for external services (used for meta-recorder), and will log client HTTP errors.
+
+## Config
+
+The server is configured using environment variables in a `.env` file. An example file [env.example](env.example) is provided.
+
+The `KEYS_FILE` is path to a file of newline-separated Ethereum public keys in compressed bytes format, for example: `03aced43f9dddc120291f5cdf73580fbb592b5b21054ce61eb73cbaf98efcbe82e`. Keys that appear in this file will get an extra field in the metadata, indicating the key was known. All keys will still be accepted by the server.
+
+Empty lines and lines starting with `#` will be ignored.
+
 ## API
 
 ### create
@@ -34,3 +48,30 @@ Response codes follow standard HTTP conventions:
 ### JWTs
 
 You can create a JWT on https://jwt.io/. Make sure to use the same secret you are using in your development server (the value of `JWT_SECRET`). The algorithm should be `HS256`.
+
+
+
+### Metadata
+/v1/assets/metadata/append
+
+
+asdfgytr3d2s4re23qe3q2w
+
+
+```json
+{
+  "preprocessor": "browsertrix",
+  "collection": "collection-name",
+  "organization": "organization-name",
+  "crawl_id": "xxx-xxx-xxx-xxx-xxx-xxx",
+  "meta_data": {}
+}
+```
+
+JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmdhbml6YXRpb25faWQiOiJoeXBoYWNvb3AiLCJhdXRob3IiOnsidHlwZSI6IlBlcnNvbiIsImlkZW50aWZpZXIiOiJodHRwczovL2h5cGhhLmNvb3AiLCJuYW1lIjoiQmVuZWRpY3QgTGF1In0sInR3aXR0ZXIiOnsidHlwZSI6Ik9yZ2FuaXphdGlvbiIsImlkZW50aWZpZXIiOiJodHRwczovL2h5cGhhLmNvb3AiLCJuYW1lIjoiSHlwaGFDb29wIn0sImNvcHlyaWdodCI6IkNvcHlyaWdodCAoQykgMjAyMSBIeXBoYSBXb3JrZXIgQ28tb3BlcmF0aXZlLiBBbGwgUmlnaHRzIFJlc2VydmVkLiJ9.gqRi6ZJ54c1g7sPQAfcj5Je1WlRCPSZ1c0aY-3X38jE"
+
+curl -X POST http://localhost:8079/v1/assets/metadata/append \
+     -H "Authorization: Bearer ${JWT}" \
+     -D "${DATA}"
+
+

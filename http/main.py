@@ -5,15 +5,19 @@
 # https://github.com/starlinglab/integrity-backend/blob/cd6554f0b4685973382f25305a5d4f90ef942d58/integritybackend/multipart.py
 
 import os
-import shutil
 import sys
 from contextlib import contextmanager
 import traceback
-import zipfile
 from datetime import datetime, timezone
 import base64
 import json
 import time
+import logging
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
+import common
+import validate
+
 
 from aiohttp import web
 from aiohttp_jwt import JWTMiddleware
@@ -21,23 +25,23 @@ import dotenv
 
 DEBUG = os.environ.get("HTTP_DEBUG") == "1"
 
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + "/../lib")
-import validate
 import geocode
 
 if not DEBUG:
     import integrity_recorder_id
 
+logging = common.logging
 sha256sum = validate.sha256sum
 
-if not DEBUG:
-    integrity_recorder_id.build_recorder_id_json()
+
+DEBUG = os.environ.get("HTTP_DEBUG") == "1"
 
 dotenv.load_dotenv()
 
 JWT_SECRET = os.environ["JWT_SECRET"]
 LOCAL_PATH = os.environ["LOCAL_PATH"]
 OUTPUT_PATH = os.environ["OUTPUT_PATH"]
+KEYS_FILE = os.environ.get("KEYS_FILE")
 
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8080"))
@@ -45,8 +49,24 @@ PORT = int(os.environ.get("PORT", "8080"))
 TMP_PATH = os.path.join(LOCAL_PATH, "tmp")
 ARCHIVE_PATH = os.path.join(LOCAL_PATH, "archive")
 
-os.makedirs(TMP_PATH, exist_ok=True)
-os.makedirs(ARCHIVE_PATH, exist_ok=True)
+
+KEYS = []
+
+
+def setup():
+    os.makedirs(TMP_PATH, exist_ok=True)
+    os.makedirs(ARCHIVE_PATH, exist_ok=True)
+
+    if KEYS_FILE:
+        with open(KEYS_FILE, "r") as f:
+            for line in f.readlines():
+                line = line.strip()
+                if line == "" or line.startswith("#"):
+                    continue
+                if len(line) == 66 and line[:2] in ["02", "03"]:
+                    KEYS.append(line)
+                else:
+                    raise Exception(f"Line is KEYS_FILE is not valid: {line}")
 
 
 class ClientError(Exception):
@@ -69,11 +89,11 @@ def error_handling_and_response():
         if isinstance(err, ClientError):
             response["status_code"] = 400
             if DEBUG:
-                print(f"Status 400: {err}")
+                logging.info(f"Status 400: {err}")
         else:
             response["status_code"] = 500
             # Print error info for unexpected errors
-            print(traceback.format_exc())
+            logging.info(traceback.format_exc())
 
 
 def get_value_from_meta(meta, name):
@@ -141,14 +161,13 @@ async def data_from_multipart(request):
 
     # https://github.com/starlinglab/integrity-schema/blob/076fb516b3389cc536e8c21eef2e4df804adb3f5/integrity-backend/input-starling-capture-examples/3e11cc57daf3bad8375935cad4878123acc8d769551ff90f1b1bb0dc597-meta-content.json
     meta_content = {
-        "contentMetadata": {
-            "name": "Authenticated content",
-            "description": "Content captured with Starling Capture application",
-            "author": jwt.get("author"),
-            "extras": {},
-            "private": {
-                "geolocation": {},
-                "providerToken": jwt,
+        "name": "Authenticated content",
+        "description": "Content captured with Starling Capture application",
+        "author": jwt.get("author"),
+        "extras": {},
+        "private": {
+            "geolocation": {},
+            "providerToken": jwt,
             },
         },
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -169,11 +188,12 @@ async def data_from_multipart(request):
             # Store and parse
             multipart_data["meta_raw"] = await part.text()
             multipart_data["meta"] = json.loads(multipart_data["meta_raw"])
+
             # Set some fields in meta_content
-            meta_content["contentMetadata"]["mime"] = multipart_data["meta"]["proof"][
+            meta_content["mime"] = multipart_data["meta"]["proof"][
                 "mimeType"
             ]
-            meta_content["contentMetadata"]["dateCreated"] = (
+            meta_content["dateCreated"] = (
                 datetime.fromtimestamp(
                     multipart_data["meta"]["proof"]["timestamp"] / 1000,
                     timezone.utc,
@@ -182,7 +202,7 @@ async def data_from_multipart(request):
                 .isoformat()
                 + "Z"
             )
-            meta_content["contentMetadata"]["private"][
+            meta_content["private"][
                 "b64AuthenticatedMetadata"
             ] = base64.standard_b64encode(multipart_data["meta_raw"].encode()).decode()
 
@@ -214,15 +234,11 @@ async def data_from_multipart(request):
 
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
-            meta_content["contentMetadata"]["private"]["signatures"] = multipart_data[
-                "signature"
-            ]
+            meta_content["private"]["signatures"] = multipart_data["signature"]
         elif part.name == "caption":
-            meta_content["contentMetadata"]["extras"]["caption"] = await part.text()
+            meta_content["extras"]["caption"] = await part.text()
         elif part.name == "target_provider":
-            meta_content["contentMetadata"]["private"][
-                "targetProvider"
-            ] = await part.text()
+            meta_content["private"]["targetProvider"] = await part.text()
         elif part.name == "tag":
             if DEBUG:
                 # No meta_recorder data available
@@ -237,7 +253,7 @@ async def data_from_multipart(request):
             info = next((i for i in service["info"] if i["type"] == "external"))
             info["values"]["name"] = await part.text()
         else:
-            print("Ignoring multipart part %s", part.name)
+            logging.info("Ignoring multipart part %s", part.name)
 
     return multipart_data, meta_content, meta_recorder
 
@@ -265,6 +281,47 @@ async def write_file(part):
     return tmp_file
 
 
+# TODO: should be read from a config file
+ROOT_PATH = "/mnt/integrity_store"
+
+
+async def metadata_append_browsertrix(data, jwt):
+    # print(jwt)
+
+    collection = data["collection"]
+    organization = data["organization"]
+    crawl_id = data["crawl_id"]
+    meta_data = data["meta_data"]
+
+    TARGET_ROOT_PATH = f"{ROOT_PATH}/starling/internal/{organization}/{collection}/"
+    metaPath = TARGET_ROOT_PATH + "preprocessor_metadata"
+
+    if not os.path.exists(metaPath):
+        os.makedirs(metaPath)
+
+    metaFilename = f"{metaPath}/{crawl_id}.json"
+    text_file = open(metaFilename, "w")
+    text_file.write(json.dumps(meta_data))
+    text_file.close()
+    logging.info(f"Writing additional metadata to {metaPath}/{crawl_id}.json")
+
+
+async def metadata_append(request):
+    with error_handling_and_response() as response:
+        jwt = request["jwt_payload"]
+        # todo add security
+
+        data = (await request.content.read()).decode("UTF-8")
+        datajson = json.loads(data)
+
+        if datajson["preprocessor"] == "browsertrix":
+            await metadata_append_browsertrix(datajson, jwt)
+        else:
+            raise Exception(f"Unsupported preprocessor")
+
+        return web.json_response(response, status=response.get("status_code"))
+
+
 async def create(request):
     with error_handling_and_response() as response:
         jwt = request["jwt_payload"]
@@ -276,6 +333,8 @@ async def create(request):
         meta_raw = data.get("meta_raw")
         sigs = data.get("signature")
         asset_path = data.get("asset_fullpath")
+
+        logging.info(f"create called: {asset_path}")
 
         # Make sure all sections actually existed in multipart
         if meta_raw is None:
@@ -290,50 +349,36 @@ async def create(request):
         if not sc.validate():
             raise ClientError("Hashes or signatures did not validate")
 
-        # Add final part to meta_content
-        meta_content["contentMetadata"][
-            "validatedSignatures"
-        ] = sc.validated_sigs_json()
+        # Add validatedSignatures
+        meta_content["validatedSignatures"] = sc.validated_sigs_json()
 
-        asset_hash = sha256sum(asset_path)
-        tmp_zip_path = os.path.join(LOCAL_PATH, asset_hash) + ".zip"
-
-        # Create zip
-        with zipfile.ZipFile(tmp_zip_path, "w") as zipf:
-            zipf.writestr(f"{asset_hash}-meta-content.json", json.dumps(meta_content))
-            zipf.writestr(f"{asset_hash}-meta-recorder.json", json.dumps(meta_recorder))
-            zipf.write(asset_path, asset_hash + os.path.splitext(asset_path)[1])
-
-        # Move zip to input dir, named as the hash of itself
+        # Add device verification info if available
+        if sc.zion_key and sc.zion_key in KEYS:
+            for sig in meta_content["validatedSignatures"]:
+                if "zion" in sig["algorithm"]:
+                    # Should only be one Zion sig, so this is the one
+                    sig["deviceInfo"] = "Public key is known"
+                    break
 
         final_dir = os.path.join(
             OUTPUT_PATH,
             jwt["organization_id"],
             jwt["collection_id"],
         )
+
         if DEBUG:
             os.makedirs(final_dir, exist_ok=True)
 
-        # Copy as .part then rename
-        zip_part_path = shutil.copy2(
-            tmp_zip_path,
-            os.path.join(
-                final_dir,
-                sha256sum(tmp_zip_path),
-            )
-            + ".zip.part",
+        os.makedirs(f"{final_dir}/tmp/", exist_ok=True)
+        os.makedirs(f"{final_dir}/input/", exist_ok=True)
+        out_file = common.add_to_pipeline(
+            asset_path,
+            meta_content,
+            meta_recorder,
+            f"{final_dir}/tmp/",
+            f"{final_dir}/input/",
         )
-        os.rename(
-            zip_part_path,
-            os.path.join(
-                final_dir,
-                sha256sum(tmp_zip_path),
-            )
-            + ".zip",
-        )
-
-        # Move tmp zip to archive
-        os.rename(tmp_zip_path, os.path.join(ARCHIVE_PATH, asset_hash) + ".zip")
+        logging.info(f"Added file to pipeline {out_file}")
 
     return web.json_response(response, status=response.get("status_code"))
 
@@ -348,6 +393,8 @@ app = web.Application(
     ]
 )
 app.add_routes([web.post("/v1/assets/create", create)])
+app.add_routes([web.post("/v1/assets/metadata/append", metadata_append)])
 
 if __name__ == "__main__":
+    setup()
     web.run_app(app, host=HOST, port=PORT)

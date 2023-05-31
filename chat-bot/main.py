@@ -307,7 +307,6 @@ def process_ingestor(ingestor):
         for item in os.listdir(localpath):
             if os.path.isfile(os.path.join(localpath, item)):
                 try:
-
                     filesplit = os.path.splitext(item)
                     filename = filesplit[0]
                     fileext = filesplit[1]
