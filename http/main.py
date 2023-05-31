@@ -293,6 +293,7 @@ async def metadata_append_browsertrix(data, jwt):
     meta_data = data["meta_data"]
 
     TARGET_ROOT_PATH = f"{ROOT_PATH}/starling/internal/{organization}/{collection}/"
+    os.makedirs(f"{TARGET_ROOT_PATH}/preprocessor_metadata", exist_ok=True)
     metaPath = TARGET_ROOT_PATH + "preprocessor_metadata"
 
     if not os.path.exists(metaPath):
