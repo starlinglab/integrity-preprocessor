@@ -169,7 +169,6 @@ async def data_from_multipart(request):
             "geolocation": {},
             "providerToken": jwt,
             },
-        },
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
     meta_recorder = get_meta_recorder()
@@ -207,7 +206,7 @@ async def data_from_multipart(request):
             ] = base64.standard_b64encode(multipart_data["meta_raw"].encode()).decode()
 
             # geolocation
-            geolocation = meta_content["contentMetadata"]["private"]["geolocation"]
+            geolocation = meta_content["private"]["geolocation"]
             meta = multipart_data["meta"]
             geolocation["latitude"] = get_value_from_meta(
                 meta, "Current GPS Latitude"
