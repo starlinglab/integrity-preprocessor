@@ -23,7 +23,12 @@ from aiohttp import web
 from aiohttp_jwt import JWTMiddleware
 import dotenv
 
-import integrity_recorder_id
+DEBUG = os.environ.get("HTTP_DEBUG") == "1"
+
+import geocode
+
+if not DEBUG:
+    import integrity_recorder_id
 
 logging = common.logging
 sha256sum = validate.sha256sum
@@ -91,6 +96,24 @@ def error_handling_and_response():
             logging.info(traceback.format_exc())
 
 
+def get_value_from_meta(meta, name):
+    """Gets the value for a given 'name' in meta['information'].
+    Args:
+        meta: dict with the 'meta' section of the request
+        name: string with the name of the value we are looking for
+    Returns:
+        the value corresponding to the given name, or None if not found
+    """
+    if (information := meta.get("information")) is None:
+        return None
+
+    for item in information:
+        if item.get("name") == name:
+            return item.get("value")
+
+    return None
+
+
 global_meta_recorder = None
 
 
@@ -143,8 +166,9 @@ async def data_from_multipart(request):
         "author": jwt.get("author"),
         "extras": {},
         "private": {
+            "geolocation": {},
             "providerToken": jwt,
-        },
+            },
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
     meta_recorder = get_meta_recorder()
@@ -160,9 +184,14 @@ async def data_from_multipart(request):
         if part.name == "file":
             multipart_data["asset_fullpath"] = await write_file(part)
         elif part.name == "meta":
+            # Store and parse
             multipart_data["meta_raw"] = await part.text()
             multipart_data["meta"] = json.loads(multipart_data["meta_raw"])
-            meta_content["mime"] = multipart_data["meta"]["proof"]["mimeType"]
+
+            # Set some fields in meta_content
+            meta_content["mime"] = multipart_data["meta"]["proof"][
+                "mimeType"
+            ]
             meta_content["dateCreated"] = (
                 datetime.fromtimestamp(
                     multipart_data["meta"]["proof"]["timestamp"] / 1000,
@@ -175,6 +204,33 @@ async def data_from_multipart(request):
             meta_content["private"][
                 "b64AuthenticatedMetadata"
             ] = base64.standard_b64encode(multipart_data["meta_raw"].encode()).decode()
+
+            # geolocation
+            geolocation = meta_content["private"]["geolocation"]
+            meta = multipart_data["meta"]
+            geolocation["latitude"] = get_value_from_meta(
+                meta, "Current GPS Latitude"
+            ) or get_value_from_meta(meta, "Last Known GPS Latitude")
+            geolocation["longitude"] = get_value_from_meta(
+                meta, "Current GPS Longitude"
+            ) or get_value_from_meta(meta, "Last Known GPS Longitude")
+            geolocation["altitude"] = get_value_from_meta(
+                meta, "Current GPS Altitude"
+            ) or get_value_from_meta(meta, "Last Known GPS Altitude")
+            geolocation["timestamp"] = get_value_from_meta(
+                meta, "Current GPS Timestamp"
+            ) or get_value_from_meta(meta, "Last Known GPS Timestamp")
+            if geolocation["latitude"] is None or geolocation["longitude"] is None:
+                # No data, remove all the None (null) values
+                geolocation = {}
+            else:
+                # Add reverse-geocode keys
+                address = geocode.reverse_geocode(
+                    geolocation["latitude"], geolocation["longitude"]
+                )
+                if address is not None:
+                    geolocation.update(address)
+
         elif part.name == "signature":
             multipart_data["signature"] = await part.json()
             meta_content["private"]["signatures"] = multipart_data["signature"]
