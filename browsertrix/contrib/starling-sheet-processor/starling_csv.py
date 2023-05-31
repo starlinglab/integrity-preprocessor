@@ -2,7 +2,7 @@ import requests
 import json
 import csv
 
-def process_starling_csv(filename,starting_row,endding_row,header_row):
+def process_starling_csv(filename,starting_row,ending_row,header_row):
     with open(filename, newline="\n", encoding="utf8") as csvfile:
         csv_reader = csv.reader(
             csvfile,
@@ -24,7 +24,7 @@ def process_starling_csv(filename,starting_row,endding_row,header_row):
                     header_index_from_name[col]=c
                     c=c+1
             
-            if row_count >= starting_row and row_count<=endding_row:
+            if row_count >= starting_row and row_count<=ending_row:
 
                 r = {
                     "path":"",
@@ -41,6 +41,7 @@ def process_starling_csv(filename,starting_row,endding_row,header_row):
                 }
                 row_key = f"{row[1]}_{row[2]}"
 
+                r["collection_id"]=row[header_index_from_name["collection_id"]]
                 r["path"]=row[header_index_from_name["path"]]
                 r["sourceId"]["key"]=row[header_index_from_name["asset_id:key"]]
                 r["sourceId"]["value"]=row[header_index_from_name["asset_id:value"]]
