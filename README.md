@@ -4,11 +4,11 @@ The Intergrity Preprocessors are a set of tools that prepare assets for injestio
 
 ## Browsertrix
 
-This service runs waits for completed crawls in pre-defined Browsertrix archives, downloads them from Browsertrix and prepeares the integrity-backend bundle. It uses a wacz/warc processor to extract meta data about the file.
+This service waits for completed web crawls from a [browsertrix webrecorder instance](https://github.com/webrecorder/browsertrix-crawler) in pre-defined Browsertrix archive directories, downloads the files from Browsertrix, and prepeares a bundle for the [integrity-backend](https://github.com/starlinglab/integrity-backend), where a wacz/warc processor is used to extract metadata about the file that can be used later for the authentication and preservation.
 
 ## Folder
 
-This servce watches a specific fodlers for new files, then prepares the integrity-backend bundle. It can be configued to process any extensions, or a pre defined list of extensions. It can optionally process files coming from proofmode or wacz files.
+This servce watches a specific set of folders for new files, then prepares the integrity-backend bundle. It can be configued to process any type of file extension, or configured from a pre-defined list of extensions. It also has the capability to process metadata from files coming from proofmode or .wacz files.
 
 This preprocessor is used for dropbox sync services.
 

@@ -20,6 +20,8 @@ aiohttp = "~=3.8.1"
 aiohttp-jwt = "*"
 # For Starling Capture
 eth-account = "==0.6.*"
+# For reverse-geocode
+geocoder = "~=1.38"
 
 # For security
 # https://github.com/starlinglab/integrity-preprocessor/security/dependabot/7
