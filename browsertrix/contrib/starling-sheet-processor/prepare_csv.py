@@ -66,4 +66,4 @@ for item in result:
         f"/mnt/integrity_store/starling/internal/{ORG}/{COLLECTION}/"
     )
     CID = starling_csv.configure_crawl(CURRENT_AID,CURRENT_PROFILE,item,BROWSERTRIX_URL,USERNAME,PASSWORD,True)
-    starling_csv.submit_metadata(ORG,COLLECTION,CID,item, API_URL,JWT)
+    starling_csv.submit_metadata(ORG,COLLECTION,CURRENT_AID,item, API_URL,JWT)
