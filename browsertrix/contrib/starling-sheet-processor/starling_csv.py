@@ -88,18 +88,26 @@ def process_starling_csv(filename,starting_row,ending_row,header_row):
                 result.append(r)
     return result
 
-def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD, RUN):
-    target_urls = [meta_data["path"]]
-    target_urls_seeds=[]
-    for t in target_urls:
-          seed={}
-          seed["url"]=t
-          target_urls_seeds.append(seed)
+def resolve_profile(OID,NAME,BROWSERTRIX_URL,USERNAME,PASSWORD):
+    headers = browsertrix_login(BROWSERTRIX_URL,USERNAME,PASSWORD)
+    URL = f"{BROWSERTRIX_URL}/api/orgs/{OID}/profiles"
+    r=requests.get(URL,headers=headers)
+    
+    for item in r.json()["items"]:
+        if item["name"]==NAME:
+            return item["id"]
+    return ""
 
-    orgKey = "sourceMetadata"
-    sourceId =  meta_data["sourceId"]
-    itemID = sourceId["value"]    
+def resolve_collection(ORG,COL,BROWSERTRIX_URL,USERNAME,PASSWORD):
+    headers = browsertrix_login(BROWSERTRIX_URL,USERNAME,PASSWORD)
+    URL = f"{BROWSERTRIX_URL}/api/orgs"
+    r=requests.get(URL,headers=headers)
+    for item in r.json()["items"]:
+        if item["name"]==f"{ORG}_{COL}":
+            return item["id"]
+    return ""
 
+def browsertrix_login(BROWSERTRIX_URL,USERNAME,PASSWORD):
     # Authenticate with Browsertrix
     auth = {"username": USERNAME, "password": PASSWORD}
 
@@ -112,7 +120,35 @@ def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD, RUN):
         raise Exception("Access Token Failed")
     access_token = response_json["access_token"]
     headers = {"Authorization": "Bearer " + access_token}
+    return headers
 
+
+def configure_crawl(AID,PROFILE,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD, RUN):
+    target_urls = [meta_data["path"]]
+    target_urls_seeds=[]
+    for t in target_urls:
+          seed={}
+          seed["url"]=t
+          target_urls_seeds.append(seed)
+
+    orgKey = "sourceMetadata"
+    sourceId =  meta_data["sourceId"]
+    itemID = sourceId["value"]    
+
+    # #TODO# Replace with browsertrix_login
+    # Authenticate with Browsertrix
+    auth = {"username": USERNAME, "password": PASSWORD}
+
+    URL = f"{BROWSERTRIX_URL}/api/auth/jwt/login"
+    # response = requests.post( URL, data=auth)
+    access_token = ""
+    resp = requests.post(URL, data=auth)
+    response_json = resp.json()
+    if "access_token" not in response_json:
+        raise Exception("Access Token Failed")
+    access_token = response_json["access_token"]
+    headers = {"Authorization": "Bearer " + access_token}
+    ### END HERE
     # Create crawl template
     config = {
         "name": itemID,
@@ -130,9 +166,10 @@ def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD, RUN):
             "behaviorTimeout": 300,
             "behaviors": "autoscroll,autoplay,autofetch,siteSpecific",
         },
+        "profileid": PROFILE
     }
     URL = f"{BROWSERTRIX_URL}/api/orgs/" + AID + "/crawlconfigs/"
-
+    print(json.dumps(config,indent=2))
 
     r = requests.post(URL, json=config, headers=headers)
     res = r.json()

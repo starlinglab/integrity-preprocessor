@@ -1,18 +1,20 @@
 # Integrity Preprocessors
 
-The Intergrity Preprocessors are a set of tools that prepare assets for injestion by integrity-backend. The preprocessor also records hashes of running programs and generates data that will be used in the meta-recorder metadata content.
+## Overview
 
-## Browsertrix
+The Intergrity Preprocessors are a set of services that prepare assets for injestion by integrity-backend. The preprocessor also records hashes of running programs, generates data that will be used in the meta-recorder metadata content and verifies integrity of root signatures.
 
-This service runs waits for completed crawls in pre-defined Browsertrix archives, downloads them from Browsertrix and prepeares the integrity-backend bundle. It uses a wacz/warc processor to extract meta data about the file.
+## Browsertrix preprocessor
+
+This service runs waits for completed crawls in configured Browsertrix organizations. If a new crawl if found, it will download the resulting WACZ file, validate its signature, and  prepeare the integrity-backend input bundle. It will extract additional information from the WACZ file to include in the metadata. Preprocessor also allows for sideloading of metadata per carwl. 
 
 ## Folder
 
-This servce watches a specific fodlers for new files, then prepares the integrity-backend bundle. It can be configued to process any extensions, or a pre defined list of extensions. It can optionally process files coming from proofmode or wacz files.
+This servce watches a specific folders for new files. When a new file is created, it prepares the integrity-backend input bundle. It can be configued to process any extensions, or a pre defined list of extensions. It can optionally process files coming from proofmode or wacz files.
 
 This preprocessor is used for dropbox sync services.
 
-If using rclone for syncing, to upload directory structue us
+If using rclone for syncing, to upload directory structue is
 ```
 cd /root/rclone
 docker-compose exec rclone /bin/bash
