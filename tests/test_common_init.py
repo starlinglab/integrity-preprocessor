@@ -5,6 +5,6 @@ import common
 
 
 def test_sha256sum():
-    assert common.sha256sum("assets/sha256_test.txt") == "936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb944412bb6f8f8f07af"
+    assert common.sha256sum("tests/assets/sha256_test.txt") == "936a185caaa266bb9cbe981e9e05cb78cd732b0b3280eb944412bb6f8f8f07af"
 
 #def add_to_pipeline(source_file, content_meta, recorder_meta, stage_path, output_path):

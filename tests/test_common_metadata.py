@@ -8,7 +8,7 @@ import common
 
 def test_common_metadata():
     md = common.Metadata()
-    md.set_mime_from_file("assets/wacz/good/domain-sig.wacz")
+    md.set_mime_from_file("tests/assets/wacz/good/domain-sig.wacz")
     assert md.get_content()["mime"] == "application/zip"
 
     md.add_extras_key({"test-extra-1": "testing test-extra-1"})
@@ -111,4 +111,4 @@ def test_common_metadata():
     # md.process_proofmode
     
 
-common_metadata_test()
+
