@@ -5,6 +5,8 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../lib")))
 import common
 
+DEBUG = os.environ.get("HTTP_DEBUG") == "1"
+
 
 def test_common_metadata():
     md = common.Metadata()
@@ -104,11 +106,8 @@ def test_common_metadata():
         "sourceId": {"key2": "source_key2", "value2": "source_value2"},
         "relatedAssetCid": "index related asset",
     }
-    md.get_content()["timestamp"]="XXXX"
+    md.get_content()["timestamp"] = "XXXX"
     assert md.get_content() == final_test
 
     # md.process_wacz
     # md.process_proofmode
-    
-
-
