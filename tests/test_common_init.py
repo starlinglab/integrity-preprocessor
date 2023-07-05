@@ -1,6 +1,6 @@
 import os
 
-DEBUG = os.environ.get("HTTP_DEBUG") == "1"
+os.environ["HTTP_DEBUG"] = "1"
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../lib")))

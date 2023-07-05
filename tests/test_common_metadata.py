@@ -1,13 +1,12 @@
 import json
 import os
 
+os.environ["HTTP_DEBUG"] = "1"
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../lib")))
 import sys
 
 
 import common
-
-DEBUG = os.environ.get("HTTP_DEBUG") == "1"
 
 
 def test_common_metadata():
