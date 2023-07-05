@@ -1,18 +1,18 @@
 # Integrity Preprocessors
 
-The Intergrity Preprocessors are a set of tools that prepare assets for injestion by integrity-backend. The preprocessor also records hashes of running programs and generates data that will be used in the meta-recorder metadata content.
+The Intergrity Preprocessors are a set of tools that prepare assets for ingestion by [integrity-backend](https://github.com/starlinglab/integrity-backend). The preprocessor also records hashes of running programs and generates data that will be used in the meta-recorder metadata content.
 
-## Browsertrix
+## [Browsertrix](browsertrix/)
 
-This service waits for completed web crawls from a [browsertrix webrecorder instance](https://github.com/webrecorder/browsertrix-crawler) in pre-defined Browsertrix archive directories, downloads the files from Browsertrix, and prepeares a bundle for the [integrity-backend](https://github.com/starlinglab/integrity-backend), where a wacz/warc processor is used to extract metadata about the file that can be used later for the authentication and preservation.
+This service waits for completed web crawls from a [browsertrix webrecorder instance](https://github.com/webrecorder/browsertrix-crawler) in pre-defined Browsertrix archive directories. It then downloads the files from Browsertrix, and prepares a bundle for the integrity-backend. The  wacz/warc processor is used to extract metadata about the file and included in the content-metadata json.
 
-## Folder
+## [Folder](folder/)
 
-This servce watches a specific set of folders for new files, then prepares the integrity-backend bundle. It can be configued to process any type of file extension, or configured from a pre-defined list of extensions. It also has the capability to process metadata from files coming from proofmode or .wacz files.
+This service watches a specific set of folders for new files, then prepares the integrity-backend bundle. It can be configured to process any type of file extension, or configured from a pre-defined list of extensions. It also has the capability to process metadata from files coming from proofmode or .wacz files.
 
 This preprocessor is used for dropbox sync services.
 
-If using rclone for syncing, to upload directory structue us
+If using rclone for syncing, to upload directory structure use
 ```
 cd /root/rclone
 docker-compose exec rclone /bin/bash
@@ -22,7 +22,7 @@ exit
 
 ## Chat-bot
 
-The chat-bot service is a series of bots that interact with chat protocols. They relay on differnt chat bot applications to prepare the data for injestion.
+The chat-bot service is a series of bots that interact with chat protocols. They relay on different chat bot applications to prepare the data for ingestion.
 
 Currently the 3 bots that are supported are
 
@@ -30,5 +30,5 @@ Archive Slack Bot - Sits in a slack workspace, and listens to rooms it is invite
 
 Archive Telegram Bot - Sits in one or many telegram channels and rooms logging all transactions
 
-Signal Chat Bot - Used to injest file on 1:1 chats from users using Signal 
+Signal Chat Bot - Used to ingest file on 1:1 chats from users using Signal 
 

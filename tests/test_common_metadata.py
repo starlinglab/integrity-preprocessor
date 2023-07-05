@@ -4,8 +4,6 @@ import sys
 os.environ["HTTP_DEBUG"] = "1"
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../lib")))
 
-
-
 import common
 
 
