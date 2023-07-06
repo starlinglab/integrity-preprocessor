@@ -92,7 +92,7 @@ def configure_crawl(AID,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD, RUN):
     target_urls = [meta_data["path"]]
     target_urls_seeds=[]
     for t in target_urls:
-          seed={}
+          seed={"scopeType": "page"}
           seed["url"]=t
           target_urls_seeds.append(seed)
 
