@@ -168,6 +168,9 @@ def configure_crawl(AID,PROFILE,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD, RUN
         },
         "profileid": PROFILE
     }
+    if PROFILE=="": 
+        del config["profileid"]
+        
     URL = f"{BROWSERTRIX_URL}/api/orgs/" + AID + "/crawlconfigs/"
     print(json.dumps(config,indent=2))
 
