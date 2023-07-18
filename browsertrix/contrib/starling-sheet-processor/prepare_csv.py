@@ -16,7 +16,7 @@ COLLECTIONS = os.environ.get("COLLECTIONS", "")
 API_URL=os.environ.get("API_URL","https://api.integrity.stg.starlinglab.org")
 USERNAME = os.environ.get("BROWSERTRIX_USERNAME","tools@starlinglab.org")
 BROWSERTRIX_URL =os.environ.get("BROWSERTRIX_URL","https://org1.browsertrix.stg.starlinglab.org")
-
+PROFILE="Daryl-Starling"
 
 
 # Resolve Collections
