@@ -57,6 +57,9 @@ for item in result:
     # Deal with multi collections
     if MUTLI_COLLECTION:
         COLLECTION=item["collection_id"]
+        if COLLECTION not in AID:
+            print("Skipping - Collection Missing")
+            continue
         CURRENT_AID=AID[COLLECTION]
         CURRENT_PROFILE=PROFILE_ID[COLLECTION]
 
