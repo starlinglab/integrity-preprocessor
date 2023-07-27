@@ -71,7 +71,6 @@ def process_starling_csv(filename,starting_row,ending_row,header_row):
                             key_value_name=f"{field_type}:value_{stub_index}"
                             if not key_value_name in header_index_from_name:
                                 print(f"cant find {key_value_name}")
-                                exit(1)
 
                             metadata_key=row[header_index_from_name[current_header]]
                             metadata_value=header_index_from_name[key_value_name]
@@ -180,13 +179,12 @@ def configure_crawl(AID,PROFILE,meta_data,BROWSERTRIX_URL,USERNAME,PASSWORD, RUN
     if "added" not in res:
         print(res)
         raise Exception("Failed to create template")
-        
-    CID = res["added"]
+    
+    CID = res["id"]
     print(f"Added {itemID} -  {CID}")
     return CID
 
 def submit_metadata(ORG,COLLECTION,CID,meta_data, API_URL,JWT):
-
     data = {
         "preprocessor": "browsertrix",
         "collection": COLLECTION,

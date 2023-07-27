@@ -302,11 +302,6 @@ while True:
                 raise Exception(f"GET of {server} /api/orgs/{aid}/crawls failed")
             crawls = r.json()["items"]
 
-            # Count the number of currently running crawls
-            for crawl in crawls:
-                if crawl["state"] == "running":
-                    crawl_running_count = crawl_running_count + 1
-
             # Sort crawls by finish time, from ones that finished first to those
             # that finished most recently
             crawls = list(filter(lambda x: x["finished"] != None, crawls))
@@ -363,7 +358,7 @@ while True:
                 wacz_url = f"https://{server}{wacz_url}"
 
                 wacz_path = (
-                    TARGET_ROOT_PATH[current_collection] + "/tmp/" + crawl["cid"] + ".wacz"
+                    TARGET_ROOT_PATH[current_collection] + "/tmp/" + crawl["id"] + ".wacz"
                 )
 
                 if os.path.exists(wacz_path + ".done"):
