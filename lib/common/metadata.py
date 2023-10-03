@@ -14,7 +14,6 @@ import validate
 
 
 class Metadata:
-
     default_author = {
         "@type": "Organization",
         "identifier": "https://starlinglab.org",
@@ -189,14 +188,15 @@ class Metadata:
         self._content["mime"] = "application/zip"
 
         date_create = None
+        # If newer date format was found then ignore older ZIP method
+        # https://github.com/guardianproject/proofmode-android/issues/109
+        found_modern_date = False
         # ProofMode metadata extraction
         with ZipFile(proofmode_path, "r") as proofmode:
-
             public_pgp = proofmode.read("pubkey.asc").decode("utf-8")
 
             asset_type = ""
             for file in proofmode.namelist():
-
                 # Extract file creation date from zip
                 # and create a py datetime opject
                 x = proofmode.getinfo(file).date_time
@@ -204,12 +204,13 @@ class Metadata:
                     x[0], x[1], x[2], x[3], x[4], x[5], 0
                 )
                 # set the earliest date as created date
-                if date_create is None or current_date_create < date_create:
+                if not found_modern_date and (
+                    date_create is None or current_date_create < date_create
+                ):
                     date_create = current_date_create
                     self._content["dateCreated"] = date_create.isoformat()
 
                 if os.path.splitext(file)[1] == ".json" and "batchproof" not in file:
-
                     base_file_name = os.path.splitext(file)[0]
                     base_file_name = os.path.splitext(base_file_name)[0]
 
@@ -242,6 +243,13 @@ class Metadata:
                         "sha256hash": file_hash,
                         "proofmodeJSON": json_meta,
                     }
+
+                    if "File Created" in json_meta and json_meta[
+                        "File Created"
+                    ].endswith("Z"):
+                        found_modern_date = True
+                        self._content["dateCreated"] = json_meta["File Created"]
+
             self.add_private_key({"proofmode": result})
 
             self.name(f"Authenticated {asset_type}")
